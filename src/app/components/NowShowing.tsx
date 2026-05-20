@@ -1,54 +1,30 @@
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { MovieCard } from "./MovieCard";
-
-const MOVIES = [
-  {
-    id: 1,
-    title: "Eclipse Protocol",
-    genre: "Action / Thriller",
-    rating: "7.9",
-    duration: "2h 18m",
-    badge: "Hot",
-    badgeColor: "#e8192c",
-    image:
-      "https://images.unsplash.com/photo-1598472237441-b5422956195e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXBlcmhlcm8lMjBtb3ZpZSUyMGNpbmVtYXRpYyUyMHBvc3RlcnxlbnwxfHx8fDE3NzI0NDE4NDl8MA&ixlib=rb-4.1.0&q=80&w=1080",
-  },
-  {
-    id: 2,
-    title: "Void Runner",
-    genre: "Sci-Fi / Adventure",
-    rating: "8.1",
-    duration: "2h 05m",
-    badge: "New",
-    badgeColor: "#0066ff",
-    image:
-      "https://images.unsplash.com/photo-1690906379371-9513895a2615?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzY2ktZmklMjBzcGFjZSUyMG1vdmllJTIwcG9zdGVyJTIwZGFya3xlbnwxfHx8fDE3NzI0NDE4NDl8MA&ixlib=rb-4.1.0&q=80&w=1080",
-  },
-  {
-    id: 3,
-    title: "The Shadow Within",
-    genre: "Horror / Mystery",
-    rating: "7.5",
-    duration: "1h 54m",
-    badge: "Trending",
-    badgeColor: "#7b2d8b",
-    image:
-      "https://images.unsplash.com/photo-1643677841226-d6427625f118?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aHJpbGxlciUyMGhvcnJvciUyMG1vdmllJTIwcG9zdGVyJTIwZGFyayUyMGRyYW1hdGljfGVufDF8fHx8MTc3MjQ0MTg1MXww&ixlib=rb-4.1.0&q=80&w=1080",
-  },
-  {
-    id: 4,
-    title: "Chronicles of Aether",
-    genre: "Fantasy / Adventure",
-    rating: "8.3",
-    duration: "2h 35m",
-    badge: "Epic",
-    badgeColor: "#c47a00",
-    image:
-      "https://images.unsplash.com/photo-1680909426935-1c907d543577?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhZHZlbnR1cmUlMjBmYW50YXN5JTIwbW92aWUlMjBlcGljJTIwY2luZW1hdGljfGVufDF8fHx8MTc3MjQ0MTg1MHww&ixlib=rb-4.1.0&q=80&w=1080",
-  },
-];
+import { getActiveMovies, Movie } from "../../lib/movies"; // Chú ý đường dẫn này, nếu báo lỗi đỏ thì sửa lại cho đúng với cấu trúc thư mục của mày nhé
 
 export function NowShowing() {
+  // 1. Tạo giỏ chứa phim (ban đầu là giỏ rỗng)
+  const [movies, setMovies] = useState<Movie[]>([]);
+
+  // 2. Tự động gọi API lấy phim ngay khi mở trang web
+  useEffect(() => {
+    const fetchMovies = async () => {
+      const result = await getActiveMovies();
+      if (result.success && result.data) {
+        setMovies(result.data); // Đổ phim lấy được từ bếp vào giỏ
+      }
+    };
+    fetchMovies();
+  }, []);
+
+  // Hàm phụ: Chuyển đổi phút (VD: 180) thành chuỗi "3h 0m" cho giao diện đẹp
+  const formatDuration = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h}h ${m < 10 ? '0' + m : m}m`;
+  };
+
   return (
     <section className="bg-[#0a0a0f] py-16 px-6">
       <div className="max-w-screen-xl mx-auto">
@@ -84,18 +60,26 @@ export function NowShowing() {
 
         {/* 4-Column Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {MOVIES.map((movie) => (
-            <MovieCard
-              key={movie.id}
-              title={movie.title}
-              genre={movie.genre}
-              rating={movie.rating}
-              duration={movie.duration}
-              image={movie.image}
-              badge={movie.badge}
-              badgeColor={movie.badgeColor}
-            />
-          ))}
+          {/* 3. Lặp qua danh sách phim thật từ Database để in ra màn hình */}
+          {movies.length > 0 ? (
+            movies.map((movie) => (
+              <MovieCard
+                key={movie.id}
+                id={movie.id}  // <--- THÊM DÒNG NÀY ĐỂ TRUYỀN ID CHO NÚT BẤM
+                title={movie.title}
+                genre={"Phim Chiếu Rạp"}
+                rating={"8.5"} 
+                duration={formatDuration(movie.duration)} // Dùng hàm format ở trên
+                image={movie.posterUrl || "https://via.placeholder.com/300x450"} // Lấy ảnh thật từ Database
+                badge="Hot"
+                badgeColor="#e8192c"
+              />
+            ))
+          ) : (
+            <div className="text-white col-span-4 text-center py-10">
+              Đang tải phim hoặc rạp chưa có bộ phim nào đang chiếu...
+            </div>
+          )}
         </div>
 
         {/* Mobile view all */}

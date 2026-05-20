@@ -1,33 +1,48 @@
-import { Popcorn, Tag, Gift, Ticket } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Popcorn, Tag, Gift, Ticket, Star, Sparkles } from "lucide-react";
 
-const PROMOS = [
-  {
-    id: 1,
-    icon: Ticket,
-    title: "Tuesday Special",
-    desc: "All tickets at half price every Tuesday. Unlimited genres.",
-    cta: "Get Deal",
-    color: "#e8192c",
-  },
-  {
-    id: 2,
-    icon: Gift,
-    title: "Membership Card",
-    desc: "Join CINEMA+ for exclusive screenings, discounts & rewards.",
-    cta: "Join Now",
-    color: "#7b2d8b",
-  },
-  {
-    id: 3,
-    icon: Tag,
-    title: "Group Booking",
-    desc: "Book 5 or more seats and get 20% off on all combo meals.",
-    cta: "Book Group",
-    color: "#c47a00",
-  },
-];
+// 1. Từ điển dịch chữ từ DB thành Icon thật
+const ICON_MAP: Record<string, any> = {
+  Ticket,
+  Gift,
+  Tag,
+  Popcorn,
+  Star,
+  Sparkles
+};
+
+// Khai báo khuôn mẫu dữ liệu
+interface Promo {
+  id: string;
+  title: string;
+  desc: string;
+  cta: string;
+  icon: string;
+  color: string;
+}
 
 export function PromoBanner() {
+  const [promos, setPromos] = useState<Promo[]>([]);
+
+  // 2. Gọi món từ Backend
+  useEffect(() => {
+    const fetchPromos = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/promotions');
+        const json = await res.json();
+        if (json.success && json.data) {
+          setPromos(json.data);
+        }
+      } catch (error) {
+        console.error("Lỗi lấy data promo:", error);
+      }
+    };
+    fetchPromos();
+  }, []);
+
+  // Nếu DB chưa có khuyến mãi nào thì ẩn section này đi cho đỡ trống
+  if (promos.length === 0) return null;
+
   return (
     <section className="bg-[#0a0a0f] py-16 px-6 border-t border-white/5">
       <div className="max-w-screen-xl mx-auto">
@@ -50,45 +65,51 @@ export function PromoBanner() {
           </h2>
         </div>
 
+        {/* Danh sách Khuyến Mãi */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {PROMOS.map((promo) => (
-            <div
-              key={promo.id}
-              className="relative group p-6 rounded-xl bg-[#111118] border border-white/5 hover:border-white/10 overflow-hidden transition-all duration-300"
-            >
-              {/* BG glow */}
-              <div
-                className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-10 blur-2xl transition-opacity duration-300 group-hover:opacity-20"
-                style={{ backgroundColor: promo.color }}
-              />
+          {promos.map((promo) => {
+            // Lấy Icon tương ứng từ từ điển, nếu ghi sai tên thì mặc định lấy Tag
+            const IconComponent = ICON_MAP[promo.icon] || Tag;
 
+            return (
               <div
-                className="w-11 h-11 rounded-lg flex items-center justify-center mb-5"
-                style={{ backgroundColor: `${promo.color}20`, border: `1px solid ${promo.color}30` }}
+                key={promo.id}
+                className="relative group p-6 rounded-xl bg-[#111118] border border-white/5 hover:border-white/10 overflow-hidden transition-all duration-300"
               >
-                <promo.icon size={20} style={{ color: promo.color }} />
+                {/* BG glow */}
+                <div
+                  className="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-10 blur-2xl transition-opacity duration-300 group-hover:opacity-20"
+                  style={{ backgroundColor: promo.color }}
+                />
+
+                <div
+                  className="w-11 h-11 rounded-lg flex items-center justify-center mb-5"
+                  style={{ backgroundColor: `${promo.color}20`, border: `1px solid ${promo.color}30` }}
+                >
+                  <IconComponent size={20} style={{ color: promo.color }} />
+                </div>
+
+                <h3 className="text-white mb-2" style={{ fontWeight: 700, fontSize: "1.05rem" }}>
+                  {promo.title}
+                </h3>
+                <p className="text-white/50 mb-5" style={{ fontSize: "0.88rem", lineHeight: 1.6 }}>
+                  {promo.desc}
+                </p>
+
+                <button
+                  className="px-5 py-2 rounded text-white transition-all duration-200 hover:brightness-110 active:scale-95"
+                  style={{
+                    backgroundColor: promo.color,
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {promo.cta}
+                </button>
               </div>
-
-              <h3 className="text-white mb-2" style={{ fontWeight: 700, fontSize: "1.05rem" }}>
-                {promo.title}
-              </h3>
-              <p className="text-white/50 mb-5" style={{ fontSize: "0.88rem", lineHeight: 1.6 }}>
-                {promo.desc}
-              </p>
-
-              <button
-                className="px-5 py-2 rounded text-white transition-all duration-200 hover:brightness-110 active:scale-95"
-                style={{
-                  backgroundColor: promo.color,
-                  fontSize: "0.82rem",
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
-                }}
-              >
-                {promo.cta}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
