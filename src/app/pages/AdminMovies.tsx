@@ -1181,25 +1181,47 @@ export function AdminMovies() {
   const toggleRow = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   /* CRUD */
-  const handleAdd = (data: typeof EMPTY_MOVIE) => {
-    const m: Movie = { ...data, id: uid(), revenue: 0, tickets: 0, occupancy: 0 };
-    setMovies(prev => [m, ...prev]);
-    setModal(null);
-    showToast(`"${data.title}" added successfully`);
+  const handleAdd = async (data: typeof EMPTY_MOVIE) => {
+    try {
+      const res = await fetch("http://localhost:3000/api/admin/movies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      if (json.success) {
+        setMovies(prev => [json.data, ...prev]);
+        setModal(null);
+        showToast(`"${data.title}" added successfully`);
+      }
+    } catch (e) { showToast("Error adding movie"); }
   };
 
-  const handleEdit = (data: typeof EMPTY_MOVIE) => {
-    setMovies(prev => prev.map(m => m.id === editTarget?.id ? { ...m, ...data } : m));
-    setModal(null); setEditTarget(undefined);
-    showToast(`"${data.title}" updated successfully`);
+  const handleEdit = async (data: typeof EMPTY_MOVIE) => {
+    try {
+      const res = await fetch(`http://localhost:3000/api/admin/movies/${editTarget?.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      if (json.success) {
+        setMovies(prev => prev.map(m => m.id === editTarget?.id ? json.data : m));
+        setModal(null); setEditTarget(undefined);
+        showToast(`"${data.title}" updated successfully`);
+      }
+    } catch (e) { showToast("Error updating movie"); }
   };
 
-  const handleDelete = () => {
-    const name = deleteTarget?.title;
-    setMovies(prev => prev.filter(m => m.id !== deleteTarget?.id));
-    setSelected(s => { const n = new Set(s); n.delete(deleteTarget?.id ?? ""); return n; });
-    setDeleteTarget(undefined);
-    showToast(`"${name}" deleted`);
+  const handleDelete = async () => {
+    try {
+      await fetch(`http://localhost:3000/api/admin/movies/${deleteTarget?.id}`, { method: "DELETE" });
+      const name = deleteTarget?.title;
+      setMovies(prev => prev.filter(m => m.id !== deleteTarget?.id));
+      setSelected(s => { const n = new Set(s); n.delete(deleteTarget?.id ?? ""); return n; });
+      setDeleteTarget(undefined);
+      showToast(`"${name}" deleted`);
+    } catch (e) { showToast("Error deleting movie"); }
   };
 
   const handleBulkDelete = () => {

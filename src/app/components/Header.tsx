@@ -158,6 +158,37 @@ export function Header() {
             {menuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
+
+        {/* THÊM MENU MOBILE Ở ĐÂY */}
+        {menuOpen && (
+          <div className="md:hidden absolute top-16 left-0 right-0 bg-[#0a0a0f]/98 backdrop-blur-xl border-b border-white/10 p-5 flex flex-col gap-4 shadow-2xl" style={{ animation: "hMobileIn 0.2s ease" }}>
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link key={to} to={to} onClick={closeAll} className="text-gray-300 hover:text-white text-lg font-bold px-2 py-1.5 transition-colors">
+                {label}
+              </Link>
+            ))}
+            
+            <div className="h-px bg-white/10 my-2" />
+            
+            {user?.role === 'ADMIN' && (
+              <Link to="/admin" onClick={closeAll} className="flex items-center gap-3 text-white/70 hover:text-white px-2 py-2">
+                <LayoutDashboard size={18} /> <span className="font-semibold">Admin Dashboard</span>
+              </Link>
+            )}
+
+            {user?.role === 'STAFF' && (
+              <Link to="/staff/pos" onClick={closeAll} className="flex items-center gap-3 text-white/70 hover:text-white px-2 py-2">
+                <Ticket size={18} /> <span className="font-semibold">Quầy Vé (POS)</span>
+              </Link>
+            )}
+            
+            {!isLoggedIn && (
+              <Link to="/login" onClick={closeAll} className="mt-2 w-full py-3 rounded-xl bg-[#e8192c] text-white text-center font-bold text-sm tracking-widest uppercase shadow-lg shadow-[#e8192c]/30">
+                Đăng Nhập
+              </Link>
+            )}
+          </div>
+        )}
       </header>
     </>
   );

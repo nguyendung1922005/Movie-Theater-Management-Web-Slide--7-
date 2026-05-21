@@ -45,7 +45,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: "Sai mật khẩu" });
     
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Lỗi server khi đăng nhập" });
@@ -64,10 +64,10 @@ app.put('/api/users/me', async (req, res) => {
 
     const user = await prisma.user.update({
       where: { id: decoded.id },
-      data: { name: name } // Cập nhật tên vào Database
+      data: { name: name, phone: phone } // Đồng bộ cả số điện thoại từ frontend
     });
 
-    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
   } catch (error) {
     res.status(500).json({ success: false, error: "Lỗi server khi cập nhật thông tin" });
   }
@@ -514,6 +514,55 @@ app.delete('/api/admin/showtimes/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: "Lỗi xóa suất chiếu" });
+  }
+});
+
+// Thêm phim mới
+app.post('/api/admin/movies', async (req, res) => {
+  try {
+    const { title, synopsis, duration, releaseDate, status, poster, trailerUrl } = req.body;
+    let durationMin = 120;
+    if (duration) {
+      const match = String(duration).match(/(?:(\d+)h)?\s*(?:(\d+)m)?/);
+      if (match) durationMin = (parseInt(match[1] || '0') * 60) + parseInt(match[2] || '0');
+    }
+    const dbStatus = status === 'Showing' ? 'NOW_SHOWING' : status === 'Coming Soon' ? 'COMING_SOON' : 'ENDED';
+    const movie = await prisma.movie.create({
+      data: { title, description: synopsis, duration: durationMin, releaseDate: new Date(releaseDate), status: dbStatus, posterUrl: poster, trailerUrl }
+    });
+    res.json({ success: true, data: { id: movie.id, title: movie.title, synopsis: movie.description || "", genre: ["Action"], director: "Đang cập nhật", cast: "Đang cập nhật", duration: `${Math.floor(movie.duration / 60)}h ${movie.duration % 60}m`, releaseDate: new Date(movie.releaseDate).toISOString().split('T')[0], format: ["2D"], rating: "PG-13", status, trailerUrl: movie.trailerUrl || "", poster: movie.posterUrl, revenue: 0, tickets: 0, occupancy: 0 } });
+  } catch (error) { res.status(500).json({ success: false, error: "Lỗi thêm phim" }); }
+});
+
+// Cập nhật phim
+app.put('/api/admin/movies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, synopsis, duration, releaseDate, status, poster, trailerUrl } = req.body;
+    let durationMin = 120;
+    if (duration) {
+      const match = String(duration).match(/(?:(\d+)h)?\s*(?:(\d+)m)?/);
+      if (match) durationMin = (parseInt(match[1] || '0') * 60) + parseInt(match[2] || '0');
+    }
+    const dbStatus = status === 'Showing' ? 'NOW_SHOWING' : status === 'Coming Soon' ? 'COMING_SOON' : 'ENDED';
+    const movie = await prisma.movie.update({
+      where: { id },
+      data: { title, description: synopsis, duration: durationMin, releaseDate: new Date(releaseDate), status: dbStatus, posterUrl: poster, trailerUrl }
+    });
+    res.json({ success: true, data: { id: movie.id, title: movie.title, synopsis: movie.description || "", genre: ["Action"], director: "Đang cập nhật", cast: "Đang cập nhật", duration: `${Math.floor(movie.duration / 60)}h ${movie.duration % 60}m`, releaseDate: new Date(movie.releaseDate).toISOString().split('T')[0], format: ["2D"], rating: "PG-13", status, trailerUrl: movie.trailerUrl || "", poster: movie.posterUrl, revenue: 0, tickets: 0, occupancy: 0 } });
+  } catch (error) { res.status(500).json({ success: false, error: "Lỗi cập nhật phim" }); }
+});
+
+// Xóa phim
+app.delete('/api/admin/movies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Xóa tất cả suất chiếu liên quan trước để tránh lỗi khóa ngoại
+    await prisma.showtime.deleteMany({ where: { movieId: id } });
+    await prisma.movie.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Lỗi xóa phim" });
   }
 });
 
