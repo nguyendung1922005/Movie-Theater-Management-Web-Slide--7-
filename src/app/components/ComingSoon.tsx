@@ -1,15 +1,28 @@
 import { useEffect, useState } from "react";
 import { Calendar, Bell } from "lucide-react";
-import { getComingSoonMovies, Movie } from "../../lib/movies"; 
+
+interface Movie {
+  id: string;
+  title: string;
+  posterUrl: string;
+  duration: number;
+  status: 'NOW_SHOWING' | 'COMING_SOON' | 'ENDED';
+  releaseDate: string;
+}
 
 export function ComingSoon() {
   const [upcomingMovies, setUpcomingMovies] = useState<Movie[]>([]);
 
   useEffect(() => {
     const fetchComingSoon = async () => {
-      const result = await getComingSoonMovies();
-      if (result.success && result.data) {
-        setUpcomingMovies(result.data);
+      try {
+        const res = await fetch("http://localhost:3000/api/movies");
+        if (res.ok) {
+          const data = await res.json();
+          setUpcomingMovies(data.filter((m: Movie) => m.status === 'COMING_SOON'));
+        }
+      } catch (err) {
+        console.error("Lỗi lấy danh sách phim sắp chiếu:", err);
       }
     };
     fetchComingSoon();

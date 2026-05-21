@@ -28,145 +28,14 @@ interface ComingMovie {
   trailerEmbed: string; // YouTube video ID (used as mock)
 }
 
-// Today is March 3, 2026
-const TODAY = new Date("2026-03-03");
+const TODAY = new Date();
 
-const UPCOMING: ComingMovie[] = [
-  {
-    id: "iron-ascent",
-    title: "Iron Ascent",
-    genre: ["Sci-Fi", "Action"],
-    poster: "https://images.unsplash.com/photo-1759395162739-84190996783c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdXR1cmlzdGljJTIwcm9ib3QlMjBtZWNoJTIwc2NpLWZpJTIwY2luZW1hdGljJTIwcG9zdGVyfGVufDF8fHx8MTc3MjU1NTkxNXww&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1759395162739-84190996783c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmdXR1cmlzdGljJTIwcm9ib3QlMjBtZWNoJTIwc2NpLWZpJTIwY2luZW1hdGljJTIwcG9zdGVyfGVufDF8fHx8MTc3MjU1NTkxNXww&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-03-15"),
-    director: "James Cameron",
-    cast: ["Ryan Gosling", "Zendaya", "Oscar Isaac"],
-    synopsis: "In a world where machines have surpassed human capability, one engineer discovers a rogue AI with a secret that could change everything.",
-    rating: "PG-13",
-    duration: "2h 24m",
-    format: ["IMAX", "4DX"],
-    accentColor: "#3b82f6",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "last-samurai-reborn",
-    title: "Last Samurai: Reborn",
-    genre: ["Action", "Drama"],
-    poster: "https://images.unsplash.com/photo-1688327044868-e358b414039c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmNpZW50JTIwd2FycmlvciUyMHNhbXVyYWklMjBlcGljJTIwZGFyayUyMGF0bW9zcGhlcmljfGVufDF8fHx8MTc3MjU1NTkxNnww&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1688327044868-e358b414039c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmNpZW50JTIwd2FycmlvciUyMHNhbXVyYWklMjBlcGljJTIwZGFyayUyMGF0bW9zcGhlcmljfGVufDF8fHx8MTc3MjU1NTkxNnww&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-03-20"),
-    director: "Park Chan-wook",
-    cast: ["Takeshi Kitano", "Ken Watanabe", "Rinko Kikuchi"],
-    synopsis: "A disgraced samurai seeks redemption in feudal Japan, uncovering a conspiracy that threatens the entire shogunate.",
-    rating: "R",
-    duration: "2h 38m",
-    format: ["IMAX", "Dolby"],
-    accentColor: "#f59e0b",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "event-horizon-2",
-    title: "Event Horizon II",
-    genre: ["Sci-Fi", "Horror"],
-    poster: "https://images.unsplash.com/photo-1765120298918-e9932c6c0332?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZWVwJTIwc3BhY2UlMjBuZWJ1bGElMjBnYWxheHklMjBjb3NtaWMlMjBlcGljfGVufDF8fHx8MTc3MjU1NTkxNnww&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1765120298918-e9932c6c0332?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZWVwJTIwc3BhY2UlMjBuZWJ1bGElMjBnYWxheHklMjBjb3NtaWMlMjBlcGljfGVufDF8fHx8MTc3MjU1NTkxNnww&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-03-28"),
-    director: "Ridley Scott",
-    cast: ["Tom Hardy", "Cate Blanchett", "Pedro Pascal"],
-    synopsis: "A rescue crew ventures into deep space to retrieve a lost ship that has returned from another dimension, bringing something back with it.",
-    rating: "R",
-    duration: "2h 15m",
-    format: ["IMAX", "4DX", "Dolby"],
-    accentColor: "#6366f1",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "shadow-protocol",
-    title: "Shadow Protocol",
-    genre: ["Action", "Thriller"],
-    poster: "https://images.unsplash.com/photo-1736022055342-68687525d659?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuaW5qYSUyMHNweSUyMGFjdGlvbiUyMHRocmlsbGVyJTIwY29tYmF0JTIwZGFya3xlbnwxfHx8fDE3NzI1NTU5MTh8MA&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1736022055342-68687525d659?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuaW5qYSUyMHNweSUyMGFjdGlvbiUyMHRocmlsbGVyJTIwY29tYmF0JTIwZGFya3xlbnwxfHx8fDE3NzI1NTU5MTh8MA&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-04-05"),
-    director: "Denis Villeneuve",
-    cast: ["Ana de Armas", "Idris Elba", "Florence Pugh"],
-    synopsis: "A covert operative must stop a rogue shadow organization from triggering a global blackout using stolen quantum technology.",
-    rating: "PG-13",
-    duration: "2h 08m",
-    format: ["Dolby", "IMAX"],
-    accentColor: "#e8192c",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "abyss-gate",
-    title: "Abyss Gate",
-    genre: ["Horror", "Sci-Fi"],
-    poster: "https://images.unsplash.com/photo-1704216145124-e24464966b68?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwb2NlYW4lMjBhYnlzcyUyMGRlZXAlMjBzZWElMjBjcmVhdHVyZSUyMGRyYW1hdGljfGVufDF8fHx8MTc3MjU1NTkyMXww&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1704216145124-e24464966b68?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwb2NlYW4lMjBhYnlzcyUyMGRlZXAlMjBzZWElMjBjcmVhdHVyZSUyMGRyYW1hdGljfGVufDF8fHx8MTc3MjU1NTkyMXww&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-04-12"),
-    director: "Guillermo del Toro",
-    cast: ["Michael B. Jordan", "Lupita Nyong'o", "Timothée Chalamet"],
-    synopsis: "When a deep-sea drilling platform awakens an ancient terror from the ocean's darkest trench, survival becomes the only mission.",
-    rating: "R",
-    duration: "2h 02m",
-    format: ["4DX", "3D"],
-    accentColor: "#0ea5e9",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "ember-kingdom",
-    title: "Ember Kingdom",
-    genre: ["Fantasy", "Adventure"],
-    poster: "https://images.unsplash.com/photo-1764562206914-78ab352f4658?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwb3N0JTIwYXBvY2FseXB0aWMlMjBydWlucyUyMGZpcmUlMjByZWQlMjBza3klMjBkZXNlcnR8ZW58MXx8fHwxNzcyNTU1OTIxfDA&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1764562206914-78ab352f4658?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwb3N0JTIwYXBvY2FseXB0aWMlMjBydWlucyUyMGZpcmUlMjByZWQlMjBza3klMjBkZXNlcnR8ZW58MXx8fHwxNzcyNTU1OTIxfDA&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-04-24"),
-    director: "Patty Jenkins",
-    cast: ["Chris Evans", "Anya Taylor-Joy", "Jonathan Majors"],
-    synopsis: "A young fire mage journeys across a dying empire to relight the ancient flame that once held the kingdom together.",
-    rating: "PG",
-    duration: "2h 18m",
-    format: ["IMAX", "3D"],
-    accentColor: "#f59e0b",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "ghost-signal",
-    title: "Ghost Signal",
-    genre: ["Horror", "Mystery"],
-    poster: "https://images.unsplash.com/photo-1672526521401-b28065d64cb1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXBlcm5hdHVyYWwlMjBnaG9zdCUyMGhvcnJvciUyMGFiYW5kb25lZCUyMGJ1aWxkaW5nfGVufDF8fHx8MTc3MjU1NTkyMnww&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1672526521401-b28065d64cb1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdXBlcm5hdHVyYWwlMjBnaG9zdCUyMGhvcnJvciUyMGFiYW5kb25lZCUyMGJ1aWxkaW5nfGVufDF8fHx8MTc3MjU1NTkyMnww&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-05-01"),
-    director: "Jordan Peele",
-    cast: ["Daniel Kaluuya", "Tessa Thompson", "Anthony Mackie"],
-    synopsis: "A paranormal investigator tracks a mysterious frequency that drives people mad, leading her to a haunted broadcast station.",
-    rating: "R",
-    duration: "1h 58m",
-    format: ["Dolby", "2D"],
-    accentColor: "#8b5cf6",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-  {
-    id: "jungle-protocol",
-    title: "Jungle Protocol",
-    genre: ["Adventure", "Mystery"],
-    poster: "https://images.unsplash.com/photo-1637070773929-054cf3288cbb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxqdW5nbGUlMjBleHBlZGl0aW9uJTIwYWR2ZW50dXJlJTIwbXlzdGVyeSUyMGdyZWVuJTIwZGFya3xlbnwxfHx8fDE3NzI1NTU5MjJ8MA&ixlib=rb-4.1.0&q=80&w=800",
-    backdrop: "https://images.unsplash.com/photo-1637070773929-054cf3288cbb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxqdW5nbGUlMjBleHBlZGl0aW9uJTIwYWR2ZW50dXJlJTIwbXlzdGVyeSUyMGdyZWVuJTIwZGFya3xlbnwxfHx8fDE3NzI1NTU5MjJ8MA&ixlib=rb-4.1.0&q=80&w=1200",
-    releaseDate: new Date("2026-05-14"),
-    director: "Werner Herzog",
-    cast: ["Dev Patel", "Jodie Comer", "Steven Yeun"],
-    synopsis: "A team of archaeologists stumbles upon a lost civilization in the Amazon, but something ancient doesn't want them to leave.",
-    rating: "PG-13",
-    duration: "2h 05m",
-    format: ["IMAX", "3D"],
-    accentColor: "#10b981",
-    trailerEmbed: "dQw4w9WgXcQ",
-  },
-];
 
-/* ══════════════════════════════════════════════════════
+/* ════════════════════════════════════s══════════════════
    HELPERS
 ══════════════════════════════════════════════════════ */
 function daysUntil(d: Date): number {
-  return Math.max(0, Math.ceil((d.getTime() - TODAY.getTime()) / 86_400_000));
+  return Math.ceil((d.getTime() - TODAY.getTime()) / 86_400_000);
 }
 
 function formatRelease(d: Date): string {
@@ -271,7 +140,7 @@ function PosterCard({ movie, notified, onToggleNotify, onOpen }: {
         >
           <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: days <= 7 ? "white" : "#f59e0b" }} />
           <span className="text-white" style={{ fontSize: "0.58rem", fontWeight: 800, letterSpacing: "0.08em" }}>
-            {days === 0 ? "TODAY" : `${days}d`}
+            {days === 0 ? "TODAY" : days < 0 ? "SOON" : `${days}d`}
           </span>
         </div>
       </div>
@@ -326,10 +195,10 @@ function CountdownDisplay({ days }: { days: number }) {
   const remDays = days % 7;
   return (
     <div className="flex items-center gap-3">
-      {days === 0 ? (
+      {days <= 0 ? (
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ backgroundColor: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)" }}>
           <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-          <span className="text-[#10b981]" style={{ fontSize: "0.85rem", fontWeight: 800, letterSpacing: "0.08em" }}>IN THEATERS TODAY</span>
+          <span className="text-[#10b981]" style={{ fontSize: "0.85rem", fontWeight: 800, letterSpacing: "0.08em" }}>{days === 0 ? "IN THEATERS TODAY" : "RELEASING SOON"}</span>
         </div>
       ) : (
         <>
@@ -612,7 +481,7 @@ function TrailerModal({ movie, notified, onToggleNotify, onClose }: {
               Close
             </button>
             <Link
-              to="/movies"
+              to={`/movie/${movie.id}`}
               onClick={onClose}
               className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white transition-all"
               style={{
@@ -715,6 +584,43 @@ function ScrollRow({ movies, notified, onToggle, onOpen }: {
 export function ComingSoon() {
   const [notified, setNotified] = useState<Set<string>>(new Set());
   const [activeModal, setActiveModal] = useState<ComingMovie | null>(null);
+  const [upcomingMovies, setUpcomingMovies] = useState<ComingMovie[]>([]);
+
+  useEffect(() => {
+    const fetchComingSoon = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/movies");
+        if (res.ok) {
+          const data = await res.json();
+          const mapped: ComingMovie[] = data
+            .filter((m: any) => m.status === 'COMING_SOON')
+            .map((m: any, index: number) => {
+               const colors = ["#3b82f6", "#f59e0b", "#6366f1", "#e8192c", "#0ea5e9", "#10b981", "#8b5cf6"];
+               return {
+                 id: m.id,
+                 title: m.title,
+                 genre: ["Action"],
+                 poster: m.posterUrl || "https://via.placeholder.com/800x1200",
+                 backdrop: m.posterUrl || "https://via.placeholder.com/1200x800",
+                 releaseDate: new Date(m.releaseDate),
+                 director: "Updating...",
+                 cast: ["Actor 1", "Actor 2"],
+                 synopsis: m.description || "Nội dung phim đang cập nhật...",
+                 rating: "PG-13",
+                 duration: `${Math.floor(m.duration / 60)}h ${m.duration % 60}m`,
+                 format: ["2D"],
+                 accentColor: colors[index % colors.length],
+                 trailerEmbed: "dQw4w9WgXcQ"
+               }
+            });
+          setUpcomingMovies(mapped);
+        }
+      } catch (error) {
+        console.error("Lỗi lấy dữ liệu phim sắp chiếu:", error);
+      }
+    };
+    fetchComingSoon();
+  }, []);
 
   const toggle = (id: string) =>
     setNotified((prev) => {
@@ -723,9 +629,9 @@ export function ComingSoon() {
       return next;
     });
 
-  const soonMovies    = UPCOMING.filter((m) => daysUntil(m.releaseDate) <= 14);
-  const thisMonth     = UPCOMING.filter((m) => { const d = daysUntil(m.releaseDate); return d > 14 && d <= 31; });
-  const comingLater   = UPCOMING.filter((m) => daysUntil(m.releaseDate) > 31);
+  const soonMovies    = upcomingMovies.filter((m) => daysUntil(m.releaseDate) <= 14);
+  const thisMonth     = upcomingMovies.filter((m) => { const d = daysUntil(m.releaseDate); return d > 14 && d <= 31; });
+  const comingLater   = upcomingMovies.filter((m) => daysUntil(m.releaseDate) > 31);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#0a0a0f" }}>
@@ -764,7 +670,7 @@ export function ComingSoon() {
           {/* Stats chips */}
           <div className="flex items-center gap-3 mt-6 flex-wrap">
             {[
-              { icon: <Film size={12} />, label: `${UPCOMING.length} Upcoming Films` },
+              { icon: <Film size={12} />, label: `${upcomingMovies.length} Upcoming Films` },
               { icon: <Zap size={12} />, label: `${soonMovies.length} Releasing This Month` },
               { icon: <Bell size={12} />, label: `${notified.size} Watchlisted` },
             ].map(({ icon, label }) => (

@@ -23,7 +23,7 @@ import {
 type Category = "All" | "Ticket Deals" | "Food & Drink" | "Membership" | "Special Events";
 
 interface Promo {
-  id: number;
+  id: number | string;
   title: string;
   subtitle: string;
   description: string;
@@ -505,7 +505,7 @@ function ClaimModal({ promo, onClose }: { promo: Promo; onClose: () => void }) {
 }
 
 /* ─── Hero Carousel ──────────────────────────────────── */
-function HeroCarousel() {
+function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
   const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -576,6 +576,21 @@ function HeroCarousel() {
           {/* Actions */}
           <div className="flex items-center gap-4 flex-wrap">
             <button
+              onClick={() => onClaim({
+                id: `hero-${slide.id}`,
+                title: slide.title,
+                subtitle: slide.subtitle,
+                description: slide.description,
+                image: slide.bg,
+                badge: slide.tag,
+                badgeColor: slide.accent,
+                category: "Special Events",
+                discount: slide.discount,
+                validFrom: "Hôm nay",
+                validTo: "Có hạn",
+                code: slide.code,
+                conditions: ["Áp dụng tại mọi rạp", "Không cộng dồn khuyến mãi"],
+              })}
               className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-white transition-all duration-200 active:scale-95"
               style={{ backgroundColor: slide.accent, fontSize: "0.9rem", fontWeight: 700, letterSpacing: "0.08em" }}
             >
@@ -677,7 +692,7 @@ export function Promotions() {
 
       {/* Hero */}
       <div className="pt-16">
-        <HeroCarousel />
+        <HeroCarousel onClaim={setClaimTarget} />
       </div>
 
       {/* Stats */}

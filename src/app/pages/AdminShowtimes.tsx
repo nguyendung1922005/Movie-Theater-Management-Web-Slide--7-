@@ -4,7 +4,8 @@ import {
   LayoutDashboard, Film, Clock, Users, Plus, X, Check, AlertTriangle,
   ChevronLeft, ChevronRight, Trash2, Edit2, Copy, ZoomIn, ZoomOut,
   Calendar, Clapperboard, Bell, ShieldCheck, Settings, LogOut, Globe,
-  AlertCircle, GripVertical, MoreHorizontal, Eye, Maximize2,
+  AlertCircle, GripVertical, MoreHorizontal, Eye, Maximize2, DoorOpen,
+  Zap, BarChart3,
 } from "lucide-react";
 
 /* ══════════════════════════════════════════
@@ -17,6 +18,7 @@ interface Showtime {
   startMin: number;
   durationMin: number;
   format?: string;
+  originalDate?: Date;
 }
 interface PopupState {
   showtimeId: string;
@@ -33,84 +35,22 @@ const HALL_W    = 164;   // px — hall label column
 const ROW_H     = 90;    // px — each hall row
 const HEADER_H  = 52;    // px — time header
 
-/* ══════════════════════════════════════════
-   DATA
-══════════════════════════════════════════ */
-const HALLS = [
-  { id: "h1",    name: "Hall 1",     type: "Standard", seats: 120, icon: "①" },
-  { id: "h2",    name: "Hall 2",     type: "Standard", seats: 100, icon: "②" },
-  { id: "h3",    name: "Hall 3",     type: "Premium",  seats:  80, icon: "③" },
-  { id: "imax",  name: "IMAX",       type: "IMAX",     seats:  60, icon: "⊕" },
-  { id: "dolby", name: "Dolby Atmos",type: "Dolby",    seats:  70, icon: "◈" },
+const COLOR_PALETTE = [
+  { border: "#e8192c", bg: "rgba(232,25,44,0.16)",   text: "#ff6b7a", glow: "rgba(232,25,44,0.3)"  },
+  { border: "#3b82f6", bg: "rgba(59,130,246,0.16)",  text: "#60a5fa", glow: "rgba(59,130,246,0.3)" },
+  { border: "#8b5cf6", bg: "rgba(139,92,246,0.16)",  text: "#a78bfa", glow: "rgba(139,92,246,0.3)" },
+  { border: "#f97316", bg: "rgba(249,115,22,0.16)",  text: "#fb923c", glow: "rgba(249,115,22,0.3)" },
+  { border: "#06b6d4", bg: "rgba(6,182,212,0.16)",   text: "#22d3ee", glow: "rgba(6,182,212,0.3)"  },
+  { border: "#6366f1", bg: "rgba(99,102,241,0.16)",  text: "#818cf8", glow: "rgba(99,102,241,0.3)" },
 ];
-
-const MOVIES = [
-  {
-    id: "your-name",
-    title: "Your Name",
-    durationMin: 106,
-    genre: "Animation",
-    rating: "PG",
-    poster: "https://images.unsplash.com/photo-1629058545686-f9acd8608d63?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["IMAX","2D"],
-  },
-  {
-    id: "neon-horizon",
-    title: "Neon Horizon",
-    durationMin: 138,
-    genre: "Sci-Fi",
-    rating: "PG-13",
-    poster: "https://images.unsplash.com/photo-1728457848586-fc2c468b4689?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["IMAX","4DX"],
-  },
-  {
-    id: "void-runner",
-    title: "Void Runner",
-    durationMin: 125,
-    genre: "Sci-Fi",
-    rating: "R",
-    poster: "https://images.unsplash.com/photo-1597366812780-bc0f837f6ca6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["4DX","Dolby"],
-  },
-  {
-    id: "iron-legacy",
-    title: "Iron Legacy",
-    durationMin: 152,
-    genre: "Fantasy",
-    rating: "R",
-    poster: "https://images.unsplash.com/photo-1668007470566-bd1e18d05fe6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["3D","Dolby"],
-  },
-  {
-    id: "code-black",
-    title: "Code Black",
-    durationMin: 122,
-    genre: "Thriller",
-    rating: "PG-13",
-    poster: "https://images.unsplash.com/photo-1641328824708-b9df9d9ab697?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["Dolby","2D"],
-  },
-  {
-    id: "dark-hollow",
-    title: "Dark Hollow",
-    durationMin: 114,
-    genre: "Horror",
-    rating: "R",
-    poster: "https://images.unsplash.com/photo-1768121496378-0644c37e7fc7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
-    formats: ["2D"],
-  },
-];
-
-const MOVIE_COLORS: Record<string, { border: string; bg: string; text: string; glow: string }> = {
-  "your-name":    { border: "#e8192c", bg: "rgba(232,25,44,0.16)",   text: "#ff6b7a", glow: "rgba(232,25,44,0.3)"  },
-  "neon-horizon": { border: "#3b82f6", bg: "rgba(59,130,246,0.16)",  text: "#60a5fa", glow: "rgba(59,130,246,0.3)" },
-  "void-runner":  { border: "#8b5cf6", bg: "rgba(139,92,246,0.16)",  text: "#a78bfa", glow: "rgba(139,92,246,0.3)" },
-  "iron-legacy":  { border: "#f97316", bg: "rgba(249,115,22,0.16)",  text: "#fb923c", glow: "rgba(249,115,22,0.3)" },
-  "code-black":   { border: "#06b6d4", bg: "rgba(6,182,212,0.16)",   text: "#22d3ee", glow: "rgba(6,182,212,0.3)"  },
-  "dark-hollow":  { border: "#6366f1", bg: "rgba(99,102,241,0.16)",  text: "#818cf8", glow: "rgba(99,102,241,0.3)" },
-};
 const CONFLICT_COLOR = { border: "#f59e0b", bg: "rgba(245,158,11,0.14)", text: "#fbbf24", glow: "rgba(245,158,11,0.3)" };
 const DEFAULT_COLOR  = { border: "#e8192c", bg: "rgba(232,25,44,0.16)",  text: "#ff6b7a", glow: "rgba(232,25,44,0.3)" };
+
+function getMovieColor(movieId: string, movies: any[]) {
+  const index = movies.findIndex(m => m.id === movieId);
+  if (index === -1) return DEFAULT_COLOR;
+  return COLOR_PALETTE[index % COLOR_PALETTE.length];
+}
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 
@@ -124,38 +64,6 @@ function minToDuration(min: number): string {
   const m = min % 60;
   return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
 }
-
-/* seed showtimes — H2 has an intentional conflict */
-const SEED_SHOWTIMES: Showtime[] = [
-  // Hall 1
-  { id: "s01", movieId: "your-name",    hallId: "h1", startMin:  600, durationMin: 106, format: "IMAX"  },
-  { id: "s02", movieId: "iron-legacy",  hallId: "h1", startMin:  720, durationMin: 152, format: "3D"    },
-  { id: "s03", movieId: "code-black",   hallId: "h1", startMin:  900, durationMin: 122, format: "Dolby" },
-  { id: "s04", movieId: "neon-horizon", hallId: "h1", startMin: 1080, durationMin: 138, format: "IMAX"  },
-  { id: "s05", movieId: "dark-hollow",  hallId: "h1", startMin: 1290, durationMin: 114, format: "2D"    },
-  // Hall 2 — conflict: your-name ends 16:16, iron-legacy starts 16:00
-  { id: "s06", movieId: "void-runner",  hallId: "h2", startMin:  540, durationMin: 125, format: "4DX"   },
-  { id: "s07", movieId: "dark-hollow",  hallId: "h2", startMin:  690, durationMin: 114, format: "2D"    },
-  { id: "s08", movieId: "your-name",    hallId: "h2", startMin:  870, durationMin: 106, format: "IMAX"  }, // ends 16:16
-  { id: "s09", movieId: "iron-legacy",  hallId: "h2", startMin:  960, durationMin: 152, format: "3D"    }, // starts 16:00 ← CONFLICT
-  // Hall 3
-  { id: "s10", movieId: "neon-horizon", hallId: "h3", startMin:  600, durationMin: 138, format: "4DX"   },
-  { id: "s11", movieId: "your-name",    hallId: "h3", startMin:  780, durationMin: 106, format: "IMAX"  },
-  { id: "s12", movieId: "void-runner",  hallId: "h3", startMin:  960, durationMin: 125, format: "Dolby" },
-  { id: "s13", movieId: "code-black",   hallId: "h3", startMin: 1140, durationMin: 122, format: "2D"    },
-  { id: "s14", movieId: "iron-legacy",  hallId: "h3", startMin: 1320, durationMin: 152, format: "3D"    },
-  // IMAX
-  { id: "s15", movieId: "your-name",    hallId: "imax", startMin:  660, durationMin: 106, format: "IMAX" },
-  { id: "s16", movieId: "void-runner",  hallId: "imax", startMin:  840, durationMin: 125, format: "IMAX" },
-  { id: "s17", movieId: "neon-horizon", hallId: "imax", startMin: 1020, durationMin: 138, format: "IMAX" },
-  { id: "s18", movieId: "dark-hollow",  hallId: "imax", startMin: 1230, durationMin: 114, format: "IMAX" },
-  // Dolby
-  { id: "s19", movieId: "code-black",   hallId: "dolby", startMin:  570, durationMin: 122, format: "Dolby" },
-  { id: "s20", movieId: "iron-legacy",  hallId: "dolby", startMin:  720, durationMin: 152, format: "Dolby" },
-  { id: "s21", movieId: "dark-hollow",  hallId: "dolby", startMin:  900, durationMin: 114, format: "Dolby" },
-  { id: "s22", movieId: "neon-horizon", hallId: "dolby", startMin: 1080, durationMin: 138, format: "Dolby" },
-  { id: "s23", movieId: "your-name",    hallId: "dolby", startMin: 1260, durationMin: 106, format: "Dolby" },
-];
 
 /* ══════════════════════════════════════════
    CONFLICT DETECTION
@@ -180,29 +88,32 @@ function getConflictIds(showtimes: Showtime[]): Set<string> {
 function AddShowtimeModal({
   defaultHallId, defaultStartMin,
   editShowtime, editMovie,
+  movies, halls,
   onSave, onClose,
 }: {
   defaultHallId?: string;
   defaultStartMin?: number;
   editShowtime?: Showtime;
-  editMovie?: typeof MOVIES[0];
+  editMovie?: any;
+  movies: any[];
+  halls: any[];
   onSave: (data: Omit<Showtime, "id">) => void;
   onClose: () => void;
 }) {
-  const [movieId,  setMovieId]  = useState(editShowtime?.movieId  ?? MOVIES[0].id);
-  const [hallId,   setHallId]   = useState(editShowtime?.hallId   ?? (defaultHallId ?? HALLS[0].id));
+  const [movieId,  setMovieId]  = useState(editShowtime?.movieId  ?? (movies[0]?.id || ""));
+  const [hallId,   setHallId]   = useState(editShowtime?.hallId   ?? (defaultHallId ?? (halls[0]?.id || "")));
   const [startStr, setStartStr] = useState(formatMin(editShowtime?.startMin ?? (defaultStartMin ?? 600)));
-  const [durStr,   setDurStr]   = useState(String(editShowtime?.durationMin ?? MOVIES[0].durationMin));
+  const [durStr,   setDurStr]   = useState(String(editShowtime?.durationMin ?? (movies[0]?.duration || 120)));
   const [format,   setFormat]   = useState(editShowtime?.format ?? "");
   const [saving,   setSaving]   = useState(false);
 
   /* Sync duration when movie changes */
   useEffect(() => {
     if (!editShowtime) {
-      const m = MOVIES.find(m => m.id === movieId);
-      if (m) setDurStr(String(m.durationMin));
+      const m = movies.find(m => m.id === movieId);
+      if (m) setDurStr(String(m.duration));
     }
-  }, [movieId, editShowtime]);
+  }, [movieId, editShowtime, movies]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -223,8 +134,8 @@ function AddShowtimeModal({
     setSaving(false);
   };
 
-  const selectedMovie = MOVIES.find(m => m.id === movieId);
-  const mc = MOVIE_COLORS[movieId] ?? DEFAULT_COLOR;
+  const selectedMovie = movies.find(m => m.id === movieId);
+  const mc = getMovieColor(movieId, movies);
 
   return (
     <div
@@ -257,8 +168,8 @@ function AddShowtimeModal({
           <div className="flex flex-col gap-2">
             <label className="text-white/35 uppercase" style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.15em" }}>Movie</label>
             <div className="grid grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.1) transparent" }}>
-              {MOVIES.map(m => {
-                const mc2 = MOVIE_COLORS[m.id] ?? DEFAULT_COLOR;
+              {movies.map(m => {
+                const mc2 = getMovieColor(m.id, movies);
                 const sel = movieId === m.id;
                 return (
                   <button
@@ -268,11 +179,11 @@ function AddShowtimeModal({
                     style={{ borderColor: sel ? mc2.border + "80" : "rgba(255,255,255,0.07)", backgroundColor: sel ? mc2.bg : "rgba(255,255,255,0.02)", boxShadow: sel ? `0 0 0 1px ${mc2.border}40` : "none" }}
                   >
                     <div className="w-full h-14 overflow-hidden">
-                      <img src={m.poster} alt="" className="w-full h-full object-cover" style={{ filter: sel ? "none" : "brightness(0.55)" }} />
+                      <img src={m.posterUrl} alt="" className="w-full h-full object-cover" style={{ filter: sel ? "none" : "brightness(0.55)" }} />
                     </div>
                     <div className="px-2 py-1.5">
                       <p className="text-white truncate" style={{ fontSize: "0.68rem", fontWeight: 700 }}>{m.title}</p>
-                      <p style={{ fontSize: "0.6rem", color: sel ? mc2.text : "rgba(255,255,255,0.3)" }}>{minToDuration(m.durationMin)}</p>
+                      <p style={{ fontSize: "0.6rem", color: sel ? mc2.text : "rgba(255,255,255,0.3)" }}>{minToDuration(m.duration)}</p>
                     </div>
                   </button>
                 );
@@ -284,7 +195,7 @@ function AddShowtimeModal({
           <div className="flex flex-col gap-2">
             <label className="text-white/35 uppercase" style={{ fontSize: "0.6rem", fontWeight: 700, letterSpacing: "0.15em" }}>Hall</label>
             <div className="flex flex-wrap gap-2">
-              {HALLS.map(h => (
+              {halls.map(h => (
                 <button
                   key={h.id}
                   onClick={() => setHallId(h.id)}
@@ -358,21 +269,22 @@ function AddShowtimeModal({
    SHOWTIME BLOCK
 ══════════════════════════════════════════ */
 function ShowtimeBlock({
-  st, movie, isConflict, zoom,
+  st, movie, isConflict, zoom, movies,
   draggingId,
   onDragStart, onDragEnd,
   onClick,
 }: {
   st: Showtime;
-  movie: typeof MOVIES[0] | undefined;
+  movie: any | undefined;
   isConflict: boolean;
   zoom: number;
+  movies: any[];
   draggingId: string | null;
   onDragStart: (e: React.DragEvent, st: Showtime) => void;
   onDragEnd: () => void;
   onClick: (e: React.MouseEvent, st: Showtime) => void;
 }) {
-  const mc = isConflict ? CONFLICT_COLOR : (MOVIE_COLORS[st.movieId] ?? DEFAULT_COLOR);
+  const mc = isConflict ? CONFLICT_COLOR : getMovieColor(st.movieId, movies);
   const left  = (st.startMin - START_MIN) * zoom;
   const width = Math.max(4, st.durationMin * zoom - 3);
   const isDragging = draggingId === st.id;
@@ -412,8 +324,8 @@ function ShowtimeBlock({
       <div className="relative h-full flex flex-col justify-between px-2 py-1.5 overflow-hidden">
         {showMedium && (
           <div className="flex items-start gap-2 min-w-0">
-            {showFull && movie?.poster && (
-              <img src={movie.poster} alt="" className="w-7 h-9 rounded-md object-cover flex-shrink-0 opacity-90" />
+            {showFull && movie?.posterUrl && (
+              <img src={movie.posterUrl} alt="" className="w-7 h-9 rounded-md object-cover flex-shrink-0 opacity-90" />
             )}
             <div className="flex-1 min-w-0">
               <p className="truncate" style={{ fontWeight: 800, fontSize: "0.75rem", color: mc.text, lineHeight: 1.2 }}>
@@ -421,7 +333,7 @@ function ShowtimeBlock({
               </p>
               {showFull && (
                 <p className="text-white/40 truncate mt-0.5" style={{ fontSize: "0.6rem" }}>
-                  {movie?.genre} · {movie?.rating}
+                  {movie?.status === 'NOW_SHOWING' ? 'Live' : 'Soon'}
                 </p>
               )}
             </div>
@@ -460,21 +372,22 @@ function ShowtimeBlock({
 ══════════════════════════════════════════ */
 function BlockPopup({
   showtimeId, x, y,
-  showtimes, conflictIds,
+  showtimes, conflictIds, movies, halls,
   onEdit, onDuplicate, onDelete, onClose,
 }: {
   showtimeId: string; x: number; y: number;
   showtimes: Showtime[]; conflictIds: Set<string>;
+  movies: any[]; halls: any[];
   onEdit: (st: Showtime) => void;
   onDuplicate: (st: Showtime) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
   const st = showtimes.find(s => s.id === showtimeId);
-  const movie = MOVIES.find(m => m.id === st?.movieId);
+  const movie = movies.find(m => m.id === st?.movieId);
   if (!st || !movie) return null;
-  const mc = conflictIds.has(st.id) ? CONFLICT_COLOR : (MOVIE_COLORS[st.movieId] ?? DEFAULT_COLOR);
-  const hall = HALLS.find(h => h.id === st.hallId);
+  const mc = conflictIds.has(st.id) ? CONFLICT_COLOR : getMovieColor(st.movieId, movies);
+  const hall = halls.find(h => h.id === st.hallId);
 
   // Adjust popup so it stays in viewport
   const popW = 220, popH = 220;
@@ -500,7 +413,7 @@ function BlockPopup({
 
       {/* Movie info */}
       <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/6">
-        <img src={movie.poster} alt="" className="w-8 h-11 rounded-lg object-cover flex-shrink-0" />
+        <img src={movie.posterUrl} alt="" className="w-8 h-11 rounded-lg object-cover flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-white truncate" style={{ fontWeight: 700, fontSize: "0.82rem" }}>{movie.title}</p>
           <p className="text-white/35 truncate" style={{ fontSize: "0.68rem" }}>
@@ -545,7 +458,9 @@ function BlockPopup({
    MAIN PAGE
 ══════════════════════════════════════════ */
 export function AdminShowtimes() {
-  const [showtimes, setShowtimes] = useState<Showtime[]>(SEED_SHOWTIMES);
+  const [halls, setHalls] = useState<any[]>([]);
+  const [movies, setMovies] = useState<any[]>([]);
+  const [showtimes, setShowtimes] = useState<Showtime[]>([]);
   const [zoom,       setZoom]       = useState(2);   // px per minute
   const [addModal,   setAddModal]   = useState<{ hallId?: string; startMin?: number } | null>(null);
   const [editTarget, setEditTarget] = useState<Showtime | null>(null);
@@ -556,6 +471,54 @@ export function AdminShowtimes() {
   const [toast, setToast]   = useState("");
   const [toastOn, setToastOn] = useState(false);
   const [dateOffset, setDateOffset] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [resRooms, resMovies, resShowtimes] = await Promise.all([
+          fetch("http://localhost:3000/api/rooms"),
+          fetch("http://localhost:3000/api/movies"),
+          fetch("http://localhost:3000/api/showtimes")
+        ]);
+        const jsonRooms = await resRooms.json();
+        const jsonMovies = await resMovies.json();
+        const jsonShowtimes = await resShowtimes.json();
+
+        if (jsonRooms.success) {
+          setHalls(jsonRooms.data.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            type: r.name.includes("IMAX") ? "IMAX" : r.name.includes("Dolby") ? "Dolby" : "Standard",
+            seats: r.capacity
+          })));
+        }
+        setMovies(jsonMovies);
+
+        const mappedShowtimes = jsonShowtimes.map((st: any) => {
+          const start = new Date(st.startTime);
+          const end = new Date(st.endTime);
+          const startMin = start.getHours() * 60 + start.getMinutes();
+          const durationMin = (end.getTime() - start.getTime()) / 60000;
+          return {
+            id: st.id,
+            movieId: st.movieId,
+            hallId: st.roomId,
+            startMin,
+            durationMin,
+            format: st.room?.name?.includes("IMAX") ? "IMAX" : "2D",
+            originalDate: start
+          };
+        });
+        setShowtimes(mappedShowtimes);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const scrollRef   = useRef<HTMLDivElement>(null);
   const dragItemRef = useRef<{ type: "new"; movieId: string } | { type: "move"; showtimeId: string } | null>(null);
@@ -571,10 +534,13 @@ export function AdminShowtimes() {
 
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const baseDate = new Date(2026, 2, 5); // Thu March 5 2026
+  const baseDate = new Date();
   const displayDate = new Date(baseDate);
   displayDate.setDate(baseDate.getDate() + dateOffset);
   const dateLabel = `${DAYS[displayDate.getDay()]}, ${MONTHS[displayDate.getMonth()]} ${displayDate.getDate()}, ${displayDate.getFullYear()}`;
+
+  // Lọc showtime theo ngày hiển thị (So sánh năm tháng ngày)
+  const visibleShowtimes = showtimes.filter(s => s.originalDate && s.originalDate.toDateString() === displayDate.toDateString());
 
   /* Current time indicator (real time, only if between 08:00 and 24:00) */
   const now = new Date();
@@ -585,14 +551,14 @@ export function AdminShowtimes() {
   /* ── position calculations ── */
   const getPosFromEvent = (e: React.DragEvent | React.MouseEvent) => {
     const el = scrollRef.current;
-    if (!el) return { hallId: HALLS[0].id, startMin: START_MIN };
+    if (!el) return { hallId: halls[0]?.id || "", startMin: START_MIN };
     const rect = el.getBoundingClientRect();
     const xInTimeline = e.clientX - rect.left + el.scrollLeft - HALL_W;
     const yInHalls    = e.clientY - rect.top - HEADER_H;
     const rawMin = START_MIN + xInTimeline / zoom;
     const startMin = Math.max(START_MIN, Math.min(END_MIN - 30, Math.round(rawMin / 5) * 5));
-    const hallIdx  = Math.max(0, Math.min(HALLS.length - 1, Math.floor(yInHalls / ROW_H)));
-    return { hallId: HALLS[hallIdx].id, startMin };
+    const hallIdx  = Math.max(0, Math.min(halls.length - 1, Math.floor(yInHalls / ROW_H)));
+    return { hallId: halls[hallIdx]?.id || "", startMin };
   };
 
   /* ── drag from movie panel ── */
@@ -626,42 +592,82 @@ export function AdminShowtimes() {
     const { hallId, startMin } = getPosFromEvent(e);
     setDragOverHall(hallId);
     const durationMin = item.type === "new"
-      ? (MOVIES.find(m => m.id === item.movieId)?.durationMin ?? 120)
+      ? (movies.find(m => m.id === item.movieId)?.duration ?? 120)
       : (showtimes.find(s => s.id === item.showtimeId)?.durationMin ?? 120);
     const movieId = item.type === "new"
       ? item.movieId
       : (showtimes.find(s => s.id === item.showtimeId)?.movieId ?? "");
     const previewStart = item.type === "move" ? startMin - dragOffMin.current : startMin;
     setDragPreview({ hallId, startMin: Math.max(START_MIN, previewStart), durationMin, movieId });
-  }, [zoom, showtimes]);
+  }, [zoom, showtimes, movies]);
 
   const onTimelineDragLeave = useCallback(() => {
     setDragOverHall(null);
     setDragPreview(null);
   }, []);
 
-  const onTimelineDrop = useCallback((e: React.DragEvent) => {
+  const onTimelineDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     const item = dragItemRef.current;
     if (!item) return;
     const { hallId, startMin } = getPosFromEvent(e);
+
+    // Calculate start and end time with displayDate
+    const startDate = new Date(displayDate);
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setMinutes(startMin);
+
     if (item.type === "new") {
-      const movie = MOVIES.find(m => m.id === item.movieId);
+      const movie = movies.find(m => m.id === item.movieId);
       if (!movie) return;
-      const newSt: Showtime = { id: genId(), movieId: item.movieId, hallId, startMin, durationMin: movie.durationMin, format: movie.formats[0] };
-      setShowtimes(prev => [...prev, newSt]);
-      showToast(`Added "${movie.title}" to ${HALLS.find(h => h.id === hallId)?.name}`);
+
+      const endDate = new Date(startDate);
+      endDate.setMinutes(startDate.getMinutes() + movie.duration);
+
+      try {
+        const res = await fetch("http://localhost:3000/api/admin/showtimes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ movieId: movie.id, roomId: hallId, startTime: startDate.toISOString(), endTime: endDate.toISOString(), priceBase: 80000 })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const newSt: Showtime = { id: data.data.id, movieId: movie.id, hallId, startMin, durationMin: movie.duration, format: data.data.room?.name?.includes("IMAX") ? "IMAX" : "2D", originalDate: startDate };
+          setShowtimes(prev => [...prev, newSt]);
+          showToast(`Added "${movie.title}"`);
+        }
+      } catch (err) {
+        showToast("Lỗi lưu suất chiếu");
+      }
     } else {
       const newStart = Math.max(START_MIN, Math.min(END_MIN - 30, startMin - dragOffMin.current));
-      setShowtimes(prev => prev.map(s => s.id === item.showtimeId ? { ...s, hallId, startMin: newStart } : s));
-      const movie = MOVIES.find(m => m.id === showtimes.find(s => s.id === item.showtimeId)?.movieId);
-      showToast(`Moved "${movie?.title}" to ${HALLS.find(h => h.id === hallId)?.name} · ${formatMin(newStart)}`);
+      const oldSt = showtimes.find(s => s.id === item.showtimeId);
+      if (oldSt) {
+        const sDate = new Date(displayDate);
+        sDate.setHours(0, 0, 0, 0);
+        sDate.setMinutes(newStart);
+        const eDate = new Date(sDate);
+        eDate.setMinutes(sDate.getMinutes() + oldSt.durationMin);
+        try {
+          const res = await fetch(`http://localhost:3000/api/admin/showtimes/${item.showtimeId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ movieId: oldSt.movieId, roomId: hallId, startTime: sDate.toISOString(), endTime: eDate.toISOString() })
+          });
+          if (res.ok) {
+            setShowtimes(prev => prev.map(s => s.id === item.showtimeId ? { ...s, hallId, startMin: newStart, originalDate: sDate } : s));
+            showToast(`Moved showtime`);
+          }
+        } catch (err) {
+          showToast("Lỗi cập nhật suất chiếu");
+        }
+      }
     }
     dragItemRef.current = null;
     setDraggingId(null);
     setDragPreview(null);
     setDragOverHall(null);
-  }, [zoom, showtimes]);
+  }, [zoom, showtimes, movies, displayDate]);
 
   /* ── click on timeline row to add ── */
   const onRowClick = (e: React.MouseEvent, hallId: string) => {
@@ -676,25 +682,60 @@ export function AdminShowtimes() {
   };
 
   /* ── CRUD ── */
-  const handleSave = (data: Omit<Showtime, "id">) => {
+  const handleSave = async (data: Omit<Showtime, "id">) => {
+    const startDate = new Date(displayDate);
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setMinutes(data.startMin);
+    const endDate = new Date(startDate);
+    endDate.setMinutes(startDate.getMinutes() + data.durationMin);
+
     if (editTarget) {
-      setShowtimes(prev => prev.map(s => s.id === editTarget.id ? { ...s, ...data } : s));
-      showToast("Showtime updated");
+      const res = await fetch(`http://localhost:3000/api/admin/showtimes/${editTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movieId: data.movieId, roomId: data.hallId, startTime: startDate.toISOString(), endTime: endDate.toISOString() })
+      });
+      if (res.ok) {
+        setShowtimes(prev => prev.map(s => s.id === editTarget.id ? { ...s, ...data, originalDate: startDate } : s));
+        showToast("Showtime updated");
+      }
     } else {
-      setShowtimes(prev => [...prev, { id: genId(), ...data }]);
-      showToast("Showtime added");
+      const res = await fetch("http://localhost:3000/api/admin/showtimes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ movieId: data.movieId, roomId: data.hallId, startTime: startDate.toISOString(), endTime: endDate.toISOString(), priceBase: 80000 })
+      });
+      const json = await res.json();
+      if (json.success) {
+        setShowtimes(prev => [...prev, { id: json.data.id, ...data, originalDate: startDate }]);
+        showToast("Showtime added");
+      }
     }
     setAddModal(null); setEditTarget(null);
   };
-  const handleDelete = (id: string) => {
-    const movie = MOVIES.find(m => m.id === showtimes.find(s => s.id === id)?.movieId);
+  const handleDelete = async (id: string) => {
+    await fetch(`http://localhost:3000/api/admin/showtimes/${id}`, { method: "DELETE" });
     setShowtimes(prev => prev.filter(s => s.id !== id));
-    showToast(`Deleted "${movie?.title}" showtime`);
+    showToast(`Deleted showtime`);
   };
-  const handleDuplicate = (st: Showtime) => {
-    const newSt = { ...st, id: genId(), startMin: Math.min(END_MIN - st.durationMin, st.startMin + st.durationMin + 15) };
-    setShowtimes(prev => [...prev, newSt]);
-    showToast("Showtime duplicated");
+  const handleDuplicate = async (st: Showtime) => {
+    const newStart = Math.min(END_MIN - st.durationMin, st.startMin + st.durationMin + 15);
+    const startDate = new Date(displayDate);
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setMinutes(newStart);
+    const endDate = new Date(startDate);
+    endDate.setMinutes(startDate.getMinutes() + st.durationMin);
+
+    const res = await fetch("http://localhost:3000/api/admin/showtimes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ movieId: st.movieId, roomId: st.hallId, startTime: startDate.toISOString(), endTime: endDate.toISOString(), priceBase: 80000 })
+    });
+    const json = await res.json();
+    if (json.success) {
+      setShowtimes(prev => [...prev, { ...st, id: json.data.id, startMin: newStart, originalDate: startDate }]);
+      showToast("Showtime duplicated");
+    }
   };
 
   /* ── Timeline header marks ── */
@@ -705,21 +746,30 @@ export function AdminShowtimes() {
 
   const totalW = (END_MIN - START_MIN) * zoom;
   const stats = {
-    total: showtimes.length,
+    total: visibleShowtimes.length,
     conflicts: conflictIds.size / 2,
-    halls: new Set(showtimes.map(s => s.hallId)).size,
-    seats: showtimes.reduce((acc, s) => {
-      const h = HALLS.find(h => h.id === s.hallId);
+    halls: new Set(visibleShowtimes.map(s => s.hallId)).size,
+    seats: visibleShowtimes.reduce((acc, s) => {
+      const h = halls.find(h => h.id === s.hallId);
       return acc + (h?.seats ?? 0);
     }, 0),
   };
 
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center bg-[#0a0a0f] text-white">Đang tải dữ liệu...</div>;
+  }
+
   const NAV = [
-    { id: "dashboard",  icon: <LayoutDashboard size={18} />, href: "/admin",         tip: "Dashboard"  },
-    { id: "movies",     icon: <Film size={18} />,            href: "/admin/movies",  tip: "Movies"     },
-    { id: "showtimes",  icon: <Clock size={18} />,           href: "/admin/showtimes", tip: "Showtimes"},
-    { id: "users",      icon: <Users size={18} />,           href: "/admin",         tip: "Users"      },
-    { id: "settings",   icon: <Settings size={18} />,        href: "/admin",         tip: "Settings"   },
+    { id: "dashboard",  icon: <LayoutDashboard size={18} />, href: "/admin",             tip: "Dashboard"  },
+    { id: "movies",     icon: <Film size={18} />,            href: "/admin/movies",      tip: "Movies"     },
+    { id: "showtimes",  icon: <Clock size={18} />,           href: "/admin/showtimes",   tip: "Showtimes"  },
+    { id: "rooms",      icon: <DoorOpen size={18} />,        href: "/admin/rooms",       tip: "Rooms"      },
+    { id: "users",      icon: <Users size={18} />,           href: "/admin/users",       tip: "Users"      },
+    { id: "promotions", icon: <Zap size={18} />,             href: "/admin/promotions",  tip: "Promotions" },
+    { id: "inventory",  icon: <Clapperboard size={18} />,    href: "/admin/inventory",   tip: "Snack Inventory" },
+    { id: "feedback",   icon: <ShieldCheck size={18} />,     href: "/admin/feedback",    tip: "Feedback"   },
+    { id: "revenue",    icon: <BarChart3 size={18} />,       href: "/admin/revenue",     tip: "Revenue Reports" },
+    { id: "settings",   icon: <Settings size={18} />,        href: "/admin/settings",    tip: "Settings"   },
   ];
 
   return (
@@ -768,8 +818,8 @@ export function AdminShowtimes() {
 
         {/* Movie list */}
         <div className="flex-1 overflow-y-auto py-2" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}>
-          {MOVIES.map(movie => {
-            const mc = MOVIE_COLORS[movie.id] ?? DEFAULT_COLOR;
+          {movies.map(movie => {
+            const mc = getMovieColor(movie.id, movies);
             return (
               <div
                 key={movie.id}
@@ -781,11 +831,11 @@ export function AdminShowtimes() {
               >
                 {/* Poster */}
                 <div className="relative h-24 overflow-hidden">
-                  <img src={movie.poster} alt={movie.title} className="w-full h-full object-cover transition-transform group-hover/card:scale-105" style={{ filter: "brightness(0.75)" }} />
+                  <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover transition-transform group-hover/card:scale-105" style={{ filter: "brightness(0.75)" }} />
                   <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.7) 100%)` }} />
                   {/* Duration badge */}
                   <span className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-white" style={{ fontSize: "0.55rem", fontWeight: 800, backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-                    {minToDuration(movie.durationMin)}
+                    {minToDuration(movie.duration)}
                   </span>
                   {/* Color accent top */}
                   <div className="absolute top-0 inset-x-0 h-0.5" style={{ backgroundColor: mc.border }} />
@@ -802,7 +852,7 @@ export function AdminShowtimes() {
                   <p className="text-white truncate" style={{ fontWeight: 700, fontSize: "0.75rem" }}>{movie.title}</p>
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-white/35" style={{ fontSize: "0.6rem" }}>{movie.genre}</span>
-                    <span className="px-1.5 py-0.5 rounded" style={{ fontSize: "0.52rem", fontWeight: 700, backgroundColor: `${mc.border}18`, color: mc.text }}>{movie.rating}</span>
+                    <span className="px-1.5 py-0.5 rounded" style={{ fontSize: "0.52rem", fontWeight: 700, backgroundColor: `${mc.border}18`, color: mc.text }}>{movie.status === 'NOW_SHOWING' ? 'LIVE' : 'SOON'}</span>
                   </div>
                 </div>
               </div>
@@ -964,8 +1014,8 @@ export function AdminShowtimes() {
             </div>
 
             {/* ── HALL ROWS ── */}
-            {HALLS.map((hall, hi) => {
-              const hallShowtimes = showtimes.filter(s => s.hallId === hall.id);
+            {halls.map((hall, hi) => {
+              const hallShowtimes = visibleShowtimes.filter(s => s.hallId === hall.id);
               const isOver = dragOverHall === hall.id;
 
               return (
@@ -1038,7 +1088,7 @@ export function AdminShowtimes() {
 
                     {/* Drag preview ghost */}
                     {dragPreview && dragPreview.hallId === hall.id && (() => {
-                      const mc = MOVIE_COLORS[dragPreview.movieId] ?? DEFAULT_COLOR;
+                      const mc = getMovieColor(dragPreview.movieId, movies);
                       const gLeft = Math.max(0, (dragPreview.startMin - START_MIN) * zoom);
                       const gWidth = Math.max(4, dragPreview.durationMin * zoom - 3);
                       return (
@@ -1060,9 +1110,10 @@ export function AdminShowtimes() {
                       <div key={st.id} data-block="1">
                         <ShowtimeBlock
                           st={st}
-                          movie={MOVIES.find(m => m.id === st.movieId)}
+                          movie={movies.find(m => m.id === st.movieId)}
                           isConflict={conflictIds.has(st.id)}
                           zoom={zoom}
+                          movies={movies}
                           draggingId={draggingId}
                           onDragStart={onBlockDragStart}
                           onDragEnd={onBlockDragEnd}
@@ -1093,7 +1144,7 @@ export function AdminShowtimes() {
           <div className="flex items-center gap-4">
             {[
               { label: `${stats.total} showtimes scheduled`, color: "rgba(255,255,255,0.3)" },
-              { label: `${HALLS.length} halls active`, color: "rgba(255,255,255,0.25)" },
+              { label: `${halls.length} halls active`, color: "rgba(255,255,255,0.25)" },
               { label: stats.conflicts > 0 ? `${stats.conflicts} conflicts need attention` : "No conflicts", color: stats.conflicts > 0 ? "#f59e0b" : "#10b981" },
             ].map(({ label, color }) => (
               <span key={label} style={{ fontSize: "0.65rem", fontWeight: 500, color }}>{label}</span>
@@ -1125,7 +1176,9 @@ export function AdminShowtimes() {
           defaultHallId={addModal?.hallId}
           defaultStartMin={addModal?.startMin}
           editShowtime={editTarget ?? undefined}
-          editMovie={editTarget ? MOVIES.find(m => m.id === editTarget.movieId) : undefined}
+          editMovie={editTarget ? movies.find(m => m.id === editTarget.movieId) : undefined}
+          movies={movies}
+          halls={halls}
           onSave={handleSave}
           onClose={() => { setAddModal(null); setEditTarget(null); }}
         />
@@ -1135,8 +1188,10 @@ export function AdminShowtimes() {
         <BlockPopup
           showtimeId={popup.showtimeId}
           x={popup.x} y={popup.y}
-          showtimes={showtimes}
+          showtimes={visibleShowtimes}
           conflictIds={conflictIds}
+          movies={movies}
+          halls={halls}
           onEdit={st => { setEditTarget(st); setPopup(null); }}
           onDuplicate={st => { handleDuplicate(st); setPopup(null); }}
           onDelete={id => { handleDelete(id); setPopup(null); }}

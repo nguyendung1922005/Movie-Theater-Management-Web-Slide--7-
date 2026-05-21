@@ -92,6 +92,13 @@ export function Header() {
               </Link>
             )}
 
+            {/* Hiện nút tính năng riêng cho STAFF */}
+            {user?.role === 'STAFF' && (
+              <Link to="/staff/pos" className="flex items-center gap-1.5 px-4 py-2 rounded border border-white/10 text-white/70 hover:text-white hover:border-white/25 transition-all duration-200" style={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                <Ticket size={14} /> Quầy Vé (POS)
+              </Link>
+            )}
+
             {isLoggedIn ? (
               <div ref={dropWrapRef} className="relative">
                 <button onClick={() => setDropOpen(v => !v)} className="relative flex items-center gap-1.5 rounded-full outline-none transition-transform duration-150 active:scale-95 ml-2">
@@ -116,14 +123,19 @@ export function Header() {
                         </div>
                       </div>
                       <div className="flex items-center justify-between px-3 py-2 rounded-xl" style={{ background: "linear-gradient(135deg, rgba(232,25,44,0.10), rgba(160,14,31,0.06))", border: "1px solid rgba(232,25,44,0.2)" }}>
-                        <div className="flex items-center gap-1.5"><Star size={11} style={{ color: "#e8192c", fill: "#e8192c" }} /><span style={{ fontSize: "0.71rem", fontWeight: 700, color: "#e8192c" }}>{user.role === 'ADMIN' ? 'Quản Trị Viên' : 'Thành Viên'}</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <Star size={11} style={{ color: "#e8192c", fill: "#e8192c" }} />
+                          <span style={{ fontSize: "0.71rem", fontWeight: 700, color: "#e8192c" }}>
+                            {user.role === 'ADMIN' ? 'Quản Trị Viên' : user.role === 'STAFF' ? 'Nhân Viên' : 'Thành Viên'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="py-1.5">
-                      <Link to="/my-tickets" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-white/[0.04] group">
-                        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/5"><Ticket size={14} className="text-white/40 group-hover:text-white/70" /></span>
-                        <span className="flex-1 text-white/65 group-hover:text-white" style={{ fontSize: "0.85rem", fontWeight: 500 }}>Vé Của Tôi</span>
+                      <Link to="/dashboard" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 transition-colors duration-150 hover:bg-white/[0.04] group">
+                        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/5"><User size={14} className="text-white/40 group-hover:text-white/70" /></span>
+                        <span className="flex-1 text-white/65 group-hover:text-white" style={{ fontSize: "0.85rem", fontWeight: 500 }}>Tài Khoản & Voucher</span>
                       </Link>
                     </div>
 

@@ -724,7 +724,7 @@ export function AdminTablet() {
                   <h3 className="text-white" style={{ fontWeight:700, fontSize:"0.9rem" }}>Recent Activity</h3>
                   <span className="text-white/25 cursor-pointer hover:text-white/50 transition-colors" style={{ fontSize:"0.68rem" }}>View all</span>
                 </div>
-                <div className="flex-1 divide-y" style={{ divideColor:C.border }}>
+                <div className="flex-1 divide-y" style={{ borderColor: C.border }}>
                   {ACTIVITY.map((a,i) => (
                     <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.015] transition-colors">
                       <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"

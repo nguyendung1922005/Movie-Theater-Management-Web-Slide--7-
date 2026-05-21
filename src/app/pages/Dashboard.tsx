@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -33,12 +33,13 @@ import {
   ChevronDown,
   BarChart3,
   Wallet,
+  Copy,
 } from "lucide-react";
 
 /* ══════════════════════════════════════════════
    TYPES
 ══════════════════════════════════════════════ */
-type NavSection = "tickets" | "history" | "rewards" | "settings";
+type NavSection = "tickets" | "vouchers" | "history" | "rewards" | "settings";
 type TicketStatus = "upcoming" | "watched" | "cancelled";
 
 interface TicketData {
@@ -62,118 +63,85 @@ interface TicketData {
 }
 
 /* ══════════════════════════════════════════════
-   MOCK DATA
+   REAL DATA HOOKS & HELPERS
 ══════════════════════════════════════════════ */
-const USER = {
-  name: "Alex Nguyen",
-  email: "alex.nguyen@gmail.com",
-  avatar: "AN",
-  memberSince: "Jan 2024",
-  tier: "VIP",
-  points: 3_480,
-  nextTierPoints: 5_000,
-  totalMovies: 24,
-  totalSpend: 1_260_000,
-  phone: "+84 901 234 567",
+const getSessionUser = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    if (u) {
+      return {
+        name: u.name || "Khách Hàng",
+        email: u.email || "khach@cinema.com",
+        avatar: u.name ? u.name.charAt(0).toUpperCase() : "K",
+        memberSince: "2024",
+        tier: "Thành Viên",
+        points: 150,
+        nextTierPoints: 1000,
+        totalMovies: 0,
+        totalSpend: 0,
+        phone: "Chưa cập nhật",
+      };
+    }
+  } catch(e) {}
+  return {
+    name: "Alex Nguyen",
+    email: "alex.nguyen@gmail.com",
+    avatar: "AN",
+    memberSince: "Jan 2024",
+    tier: "VIP",
+    points: 3_480,
+    nextTierPoints: 5_000,
+    totalMovies: 24,
+    totalSpend: 1_260_000,
+    phone: "+84 901 234 567",
+  };
 };
 
-const TICKETS: TicketData[] = [
-  {
-    id: "TK-001",
-    movie: "Your Name",
-    genre: "Animation · Romance",
-    poster: "https://images.unsplash.com/photo-1561046582-8f3224fcdab2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx5b3VyJTIwbmFtZSUyMGFuaW1lJTIwa2ltaSUyMG5vJTIwbmElMjB3YSUyMGNvbWV0JTIwc2t5fGVufDF8fHx8MTc3MjU1MzcwMnww&ixlib=rb-4.1.0&q=80&w=400",
-    date: "Saturday, March 8, 2026",
-    shortDate: "Mar 8, 2026",
-    time: "7:30 PM",
-    hall: "Hall 3 – IMAX",
-    seats: ["VIP G10", "VIP G11"],
-    format: "IMAX",
-    price: 280_000,
-    status: "upcoming",
-    bookingRef: "ABC1234",
-    cinema: "CGV Vincom Center",
-    duration: "1h 46m",
-    accentColor: "#6366f1",
-    rating: 0,
-  },
-  {
-    id: "TK-002",
-    movie: "Stellar Void",
-    genre: "Sci-Fi · Epic",
-    poster: "https://images.unsplash.com/photo-1710270822096-ccfa274be004?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzcGFjZSUyMGdhbGF4eSUyMG5lYnVsYSUyMHN0YXJzJTIwZGFyayUyMGJsdWUlMjBwdXJwbGV8ZW58MXx8fHwxNzcyNTUzNzA4fDA&ixlib=rb-4.1.0&q=80&w=400",
-    date: "Sunday, March 9, 2026",
-    shortDate: "Mar 9, 2026",
-    time: "9:00 PM",
-    hall: "Hall 1 – 4DX",
-    seats: ["VIP H8"],
-    format: "4DX",
-    price: 320_000,
-    status: "upcoming",
-    bookingRef: "XY7890",
-    cinema: "Lotte Cinema Landmark",
-    duration: "2h 28m",
-    accentColor: "#0ea5e9",
-    rating: 0,
-  },
-  {
-    id: "TK-003",
-    movie: "Shadow Realm",
-    genre: "Fantasy · Action",
-    poster: "https://images.unsplash.com/photo-1764515836276-00a873baf511?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYW50YXN5JTIwZm9yZXN0JTIwbWFnaWNhbCUyMGdsb3dpbmclMjB0cmVlc3xlbnwxfHx8fDE3NzI1NTM3MDh8MA&ixlib=rb-4.1.0&q=80&w=400",
-    date: "Friday, Feb 28, 2026",
-    shortDate: "Feb 28, 2026",
-    time: "8:00 PM",
-    hall: "Hall 5 – Premium",
-    seats: ["E3", "E4", "E5"],
-    format: "Premium",
-    price: 450_000,
-    status: "watched",
-    bookingRef: "PQ3344",
-    cinema: "BHD Star Bitexco",
-    duration: "2h 15m",
-    accentColor: "#f59e0b",
-    rating: 5,
-  },
-  {
-    id: "TK-004",
-    movie: "Storm Protocol",
-    genre: "Action · Thriller",
-    poster: "https://images.unsplash.com/photo-1592407304867-8c7a2174f460?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhY3Rpb24lMjBtb3ZpZSUyMGRhcmslMjBkcmFtYXRpYyUyMGhlcm8lMjBzaWxob3VldHRlfGVufDF8fHx8MTc3MjU1MzcwOHww&ixlib=rb-4.1.0&q=80&w=400",
-    date: "Mon, Jan 27, 2026",
-    shortDate: "Jan 27, 2026",
-    time: "6:45 PM",
-    hall: "Hall 4 – Dolby Atmos",
-    seats: ["D7", "D8"],
-    format: "Dolby",
-    price: 340_000,
-    status: "cancelled",
-    bookingRef: "MN5566",
-    cinema: "Lotte Cinema",
-    duration: "2h 05m",
-    accentColor: "#e8192c",
-    rating: 0,
-  },
-  {
-    id: "TK-005",
-    movie: "Night Bloom",
-    genre: "Drama · Romance",
-    poster: "https://images.unsplash.com/photo-1608875004752-2fdb6a39ba4c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmltZSUyMGNpdHklMjBuaWdodCUyMGxpZ2h0cyUyMGJva2VoJTIwcHVycGxlJTIwYmx1ZXxlbnwxfHx8fDE3NzI1NTM3MDN8MA&ixlib=rb-4.1.0&q=80&w=400",
-    date: "Thu, Jan 15, 2026",
-    shortDate: "Jan 15, 2026",
-    time: "4:15 PM",
-    hall: "Hall 2 – Standard",
-    seats: ["B10", "B11"],
-    format: "2D",
-    price: 160_000,
-    status: "watched",
-    bookingRef: "RS9988",
-    cinema: "CGV Vincom",
-    duration: "1h 52m",
-    accentColor: "#10b981",
-    rating: 4,
-  },
-];
+function useMyTickets() {
+  const [myTickets, setMyTickets] = useState<TicketData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) { setLoading(false); return; }
+      try {
+        const res = await fetch("http://localhost:3000/api/tickets/me", { headers: { Authorization: `Bearer ${token}` } });
+        const json = await res.json();
+        if(json.success) {
+          const mapped = json.bookings.map((b: any) => {
+            const firstTicket = b.tickets?.[0];
+            const showtime = firstTicket?.showtime;
+            return {
+              id: b.id,
+              movie: showtime?.movie?.title || "Combo Bắp Nước",
+              genre: "Phim Chiếu Rạp",
+              poster: showtime?.movie?.posterUrl || "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400",
+              date: showtime ? new Date(showtime.startTime).toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : "--",
+              shortDate: showtime ? new Date(showtime.startTime).toLocaleDateString("vi-VN", { month: 'short', day: 'numeric', year: 'numeric' }) : "--",
+              time: showtime ? new Date(showtime.startTime).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : "--",
+              hall: showtime?.room?.name || "CGV Vincom",
+              seats: b.tickets.map((t: any) => t.seat ? `${t.seat.row}${t.seat.number}` : "").filter(Boolean),
+              format: showtime?.room?.name?.includes("IMAX") ? "IMAX" : "2D",
+              price: b.totalAmount,
+              status: b.status === "COMPLETED" ? "upcoming" : "cancelled",
+              bookingRef: b.id.substring(0,8).toUpperCase(),
+              cinema: "CGV Vincom Center",
+              duration: showtime?.movie?.duration ? `${showtime.movie.duration}m` : "--",
+              accentColor: "#e8192c",
+              rating: 0
+            };
+          });
+          setMyTickets(mapped);
+        }
+      } catch(e) { console.error(e); }
+      setLoading(false);
+    };
+    fetchTickets();
+  }, []);
+
+  return { myTickets, loading };
+}
 
 /* ══════════════════════════════════════════════
    HELPERS
@@ -576,18 +544,19 @@ function MyTicketsView() {
   const [filter, setFilter] = useState<"all" | TicketStatus>("all");
   const [search, setSearch] = useState("");
   const [openTicket, setOpenTicket] = useState<TicketData | null>(null);
+  const { myTickets, loading } = useMyTickets();
 
-  const displayed = TICKETS.filter((t) => {
+  const displayed = myTickets.filter((t) => {
     const matchStatus = filter === "all" || t.status === filter;
     const matchSearch = t.movie.toLowerCase().includes(search.toLowerCase()) || t.cinema.toLowerCase().includes(search.toLowerCase());
     return matchStatus && matchSearch;
   });
 
   const counts = {
-    all: TICKETS.length,
-    upcoming: TICKETS.filter((t) => t.status === "upcoming").length,
-    watched: TICKETS.filter((t) => t.status === "watched").length,
-    cancelled: TICKETS.filter((t) => t.status === "cancelled").length,
+    all: myTickets.length,
+    upcoming: myTickets.filter((t) => t.status === "upcoming").length,
+    watched: myTickets.filter((t) => t.status === "watched").length,
+    cancelled: myTickets.filter((t) => t.status === "cancelled").length,
   };
 
   return (
@@ -657,7 +626,9 @@ function MyTicketsView() {
       </div>
 
       {/* Tickets grid */}
-      {displayed.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-20 text-white/40">Đang tải kho vé của bạn...</div>
+      ) : displayed.length > 0 ? (
         <div className="flex flex-col gap-5">
           {displayed.map((ticket) => (
             <TicketCard key={ticket.id} ticket={ticket} onOpen={() => setOpenTicket(ticket)} />
@@ -680,6 +651,9 @@ function MyTicketsView() {
    PURCHASE HISTORY VIEW
 ══════════════════════════════════════════════ */
 function PurchaseHistoryView() {
+  const { myTickets, loading } = useMyTickets();
+  const totalSpend = myTickets.reduce((sum, t) => sum + t.price, 0);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -695,9 +669,9 @@ function PurchaseHistoryView() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
-          { label: "Total Spent",   value: `${(USER.totalSpend / 1000).toFixed(0)}K₫`,  icon: <Wallet size={15} />,    color: "#e8192c" },
-          { label: "Total Tickets", value: TICKETS.length,                               icon: <Ticket size={15} />,    color: "#10b981" },
-          { label: "Avg Per Visit", value: `${Math.round(USER.totalSpend / USER.totalMovies / 1000)}K₫`, icon: <BarChart3 size={15} />, color: "#f59e0b" },
+          { label: "Total Spent",   value: `${(totalSpend / 1000).toFixed(0)}K₫`,  icon: <Wallet size={15} />,    color: "#e8192c" },
+          { label: "Total Tickets", value: myTickets.length,                               icon: <Ticket size={15} />,    color: "#10b981" },
+          { label: "Avg Per Visit", value: `${myTickets.length > 0 ? Math.round(totalSpend / myTickets.length / 1000) : 0}K₫`, icon: <BarChart3 size={15} />, color: "#f59e0b" },
         ].map(({ label, value, icon, color }) => (
           <div key={label} className="rounded-2xl p-4 border border-white/6 flex flex-col gap-2" style={{ backgroundColor: "#111118" }}>
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}15`, color }}>
@@ -716,24 +690,28 @@ function PurchaseHistoryView() {
             <span key={h} className="text-white/25 uppercase" style={{ fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.12em" }}>{h}</span>
           ))}
         </div>
-        {TICKETS.map((t, i) => (
-          <div
-            key={t.id}
-            className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-white/[0.02] transition-colors"
-            style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.04)" : undefined }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <img src={t.poster} alt="" className="w-8 h-10 rounded-lg object-cover flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-white truncate" style={{ fontSize: "0.83rem", fontWeight: 700 }}>{t.movie}</p>
-                <p className="text-white/30 truncate" style={{ fontSize: "0.68rem" }}>{t.cinema}</p>
+        {loading ? (
+          <div className="p-8 text-center text-white/40">Đang tải lịch sử...</div>
+        ) : (
+          myTickets.map((t, i) => (
+            <div
+              key={t.id}
+              className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3.5 items-center hover:bg-white/[0.02] transition-colors"
+              style={{ borderTop: i > 0 ? "1px solid rgba(255,255,255,0.04)" : undefined }}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <img src={t.poster} alt="" className="w-8 h-10 rounded-lg object-cover flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-white truncate" style={{ fontSize: "0.83rem", fontWeight: 700 }}>{t.movie}</p>
+                  <p className="text-white/30 truncate" style={{ fontSize: "0.68rem" }}>{t.cinema}</p>
+                </div>
               </div>
+              <span className="text-white/40" style={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}>{t.shortDate}</span>
+              <span className="text-white" style={{ fontSize: "0.82rem", fontWeight: 700, whiteSpace: "nowrap" }}>{fmtVND(t.price)}</span>
+              <StatusBadge status={t.status} />
             </div>
-            <span className="text-white/40" style={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}>{t.shortDate}</span>
-            <span className="text-white" style={{ fontSize: "0.82rem", fontWeight: 700, whiteSpace: "nowrap" }}>{fmtVND(t.price)}</span>
-            <StatusBadge status={t.status} />
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
@@ -752,6 +730,7 @@ const ACHIEVEMENTS = [
 ];
 
 function MembershipPointsView() {
+  const USER = getSessionUser();
   const pct = Math.round((USER.points / USER.nextTierPoints) * 100);
   return (
     <div className="flex flex-col gap-6">
@@ -849,17 +828,113 @@ function MembershipPointsView() {
 }
 
 /* ══════════════════════════════════════════════
+   MY VOUCHERS VIEW
+══════════════════════════════════════════════ */
+function MyVouchersView() {
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/promotions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) setVouchers(data.data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const handleCopy = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopied(code);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h2 className="text-white" style={{ fontWeight: 900, fontSize: "1.25rem", letterSpacing: "-0.02em" }}>My Vouchers</h2>
+        <p className="text-white/35" style={{ fontSize: "0.78rem", marginTop: "2px" }}>Các mã giảm giá và ưu đãi dành riêng cho bạn</p>
+      </div>
+
+      {loading ? (
+        <div className="text-white/40 text-center py-10">Đang tải ví voucher...</div>
+      ) : vouchers.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {vouchers.map(v => {
+            const code = "CINE" + String(v.id).substring(0, 4).toUpperCase();
+            return (
+              <div key={v.id} className="rounded-2xl p-5 border border-white/10 flex flex-col justify-between transition-all hover:-translate-y-1 hover:border-white/20" style={{ backgroundColor: "#111118", backgroundImage: `radial-gradient(circle at top right, ${v.color}15, transparent 60%)` }}>
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <span className="px-2 py-0.5 rounded text-white text-[0.6rem] font-bold tracking-wider mb-2 inline-block" style={{ backgroundColor: v.color }}>ƯU ĐÃI</span>
+                    <h3 className="text-white font-bold text-lg leading-tight line-clamp-1">{v.title}</h3>
+                    <p className="text-white/50 text-xs mt-1.5 line-clamp-2 leading-relaxed">{v.desc}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10" style={{ borderTopStyle: "dashed" }}>
+                  <div className="flex flex-col">
+                    <span className="text-white/30 text-[0.6rem] uppercase font-bold tracking-widest">Mã Code</span>
+                    <span className="text-white font-mono font-bold text-sm tracking-wider">{code}</span>
+                  </div>
+                  <button onClick={() => handleCopy(code)} className="px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 transition-colors" style={{ backgroundColor: copied === code ? "#10b981" : "rgba(255,255,255,0.1)" }}>
+                    {copied === code ? <Check size={12} /> : <Copy size={12} />}
+                    {copied === code ? "Đã chép" : "Copy"}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-20 border border-dashed border-white/10 rounded-2xl bg-[#111118] text-white/40">
+          <Gift size={44} className="mx-auto mb-4 opacity-20" />
+          <p className="mb-2">Bạn chưa có voucher nào!</p>
+          <p className="text-xs text-white/20">Hãy thường xuyên kiểm tra các chương trình khuyến mãi nhé.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
    SETTINGS VIEW
 ══════════════════════════════════════════════ */
 function SettingsView() {
+  const USER = getSessionUser();
   const [name, setName] = useState(USER.name);
   const [email, setEmail] = useState(USER.email);
   const [phone, setPhone] = useState(USER.phone);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  const handleSave = async () => {
+    setSaving(true);
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch("http://localhost:3000/api/users/me", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ name, phone })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        localStorage.setItem("user", JSON.stringify({ ...currentUser, name: data.user.name, phone }));
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+        setTimeout(() => window.location.reload(), 500); // Tải lại trang để cập nhật tên góc trên Header
+      } else {
+        alert(data.error || "Lỗi cập nhật");
+      }
+    } catch (e) {
+      alert("Không thể kết nối đến server");
+    }
+    setSaving(false);
   };
 
   return (
@@ -893,10 +968,11 @@ function SettingsView() {
         ))}
         <button
           onClick={handleSave}
+          disabled={saving}
           className="mt-2 w-full py-3.5 rounded-xl text-white transition-all flex items-center justify-center gap-2"
           style={{ backgroundColor: saved ? "#10b981" : "#e8192c", fontSize: "0.85rem", fontWeight: 800, letterSpacing: "0.1em" }}
         >
-          {saved ? <><Check size={15} /> SAVED!</> : "SAVE CHANGES"}
+          {saving ? "SAVING..." : saved ? <><Check size={15} /> SAVED!</> : "SAVE CHANGES"}
         </button>
       </div>
 
@@ -941,6 +1017,7 @@ function SettingsView() {
 ══════════════════════════════════════════════ */
 const NAV: { id: NavSection; icon: React.ReactNode; label: string; badge?: number }[] = [
   { id: "tickets",  icon: <Ticket size={18} />,  label: "My Tickets",        badge: 2 },
+  { id: "vouchers", icon: <Gift size={18} />,    label: "My Vouchers",       badge: 1 },
   { id: "history",  icon: <History size={18} />, label: "Purchase History" },
   { id: "rewards",  icon: <Star size={18} />,    label: "Membership Points", badge: 3 },
   { id: "settings", icon: <Settings size={18} />,label: "Settings" },
@@ -948,6 +1025,7 @@ const NAV: { id: NavSection; icon: React.ReactNode; label: string; badge?: numbe
 
 function Sidebar({ active, onSelect }: { active: NavSection; onSelect: (s: NavSection) => void }) {
   const navigate = useNavigate();
+  const USER = getSessionUser();
 
   return (
     <aside
@@ -1060,12 +1138,14 @@ function Sidebar({ active, onSelect }: { active: NavSection; onSelect: (s: NavSe
 ══════════════════════════════════════════════ */
 const SECTION_LABELS: Record<NavSection, string> = {
   tickets: "My Tickets",
+  vouchers: "My Vouchers",
   history: "Purchase History",
   rewards: "Membership Points",
   settings: "Settings",
 };
 
 function TopBar({ section, onMobileMenu }: { section: NavSection; onMobileMenu: () => void }) {
+  const USER = getSessionUser();
   return (
     <header
       className="flex-shrink-0 flex items-center justify-between px-6 h-16 border-b border-white/[0.05]"
@@ -1146,6 +1226,7 @@ export function Dashboard() {
         >
           <div className="max-w-4xl mx-auto">
             {section === "tickets"  && <MyTicketsView />}
+            {section === "vouchers" && <MyVouchersView />}
             {section === "history"  && <PurchaseHistoryView />}
             {section === "rewards"  && <MembershipPointsView />}
             {section === "settings" && <SettingsView />}

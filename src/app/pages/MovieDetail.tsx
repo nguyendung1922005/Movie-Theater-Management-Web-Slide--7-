@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { Star, Clock, Calendar, ChevronLeft } from "lucide-react";
 import { Header } from "../components/Header";
@@ -28,13 +28,39 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function BookingSidebar({ movie, showtimes }: { movie: Movie; showtimes: any[] }) {
   const [selectedShowtimeId, setSelectedShowtimeId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (showtimes && showtimes.length > 0) {
-      setSelectedShowtimeId(showtimes[0].id);
-    }
+  // Nhóm suất chiếu theo ngày
+  const showtimesByDate = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    showtimes.forEach(show => {
+      const dateStr = new Date(show.startTime).toLocaleDateString("vi-VN");
+      if (!groups[dateStr]) groups[dateStr] = [];
+      groups[dateStr].push(show);
+    });
+    return groups;
   }, [showtimes]);
+
+  const availableDates = Object.keys(showtimesByDate);
+
+  useEffect(() => {
+    if (availableDates.length > 0) {
+      if (!selectedDate || !availableDates.includes(selectedDate)) {
+        setSelectedDate(availableDates[0]);
+      }
+    } else {
+      setSelectedDate(null);
+    }
+  }, [availableDates, selectedDate]);
+
+  const currentShowtimes = selectedDate ? showtimesByDate[selectedDate] : [];
+
+  useEffect(() => {
+    if (currentShowtimes && currentShowtimes.length > 0) {
+      setSelectedShowtimeId(currentShowtimes[0].id);
+    }
+  }, [selectedDate, currentShowtimes]);
 
   const selectedShowtime = showtimes.find((s) => s.id === selectedShowtimeId);
 
@@ -71,18 +97,37 @@ function BookingSidebar({ movie, showtimes }: { movie: Movie; showtimes: any[] }
       </div>
 
       <div className="rounded-xl bg-[#111118] border border-white/8 overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/6 flex items-center justify-between">
-          <p className="text-white/40 uppercase mb-0.5" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.14em" }}>
-            Lịch Chiếu Hôm Nay
-          </p>
-          <span className="px-2.5 py-1 rounded-full bg-[#e8192c]/15 text-[#e8192c] uppercase" style={{ fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em" }}>
-            Live
-          </span>
+        <div className="px-5 py-4 border-b border-white/6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-white/40 uppercase mb-0.5" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.14em" }}>
+              Chọn Ngày Chiếu
+            </p>
+            <span className="px-2.5 py-1 rounded-full bg-[#e8192c]/15 text-[#e8192c] uppercase" style={{ fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.1em" }}>
+              Live
+            </span>
+          </div>
+          
+          {/* Thanh cuộn ngang chọn ngày */}
+          {availableDates.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+              {availableDates.map(date => (
+                <button
+                  key={date}
+                  onClick={() => setSelectedDate(date)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg border transition-all text-xs font-bold ${
+                    selectedDate === date ? "bg-[#e8192c] border-[#e8192c] text-white" : "bg-transparent border-white/10 text-white/40 hover:text-white hover:border-white/30"
+                  }`}
+                >
+                  {date}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {showtimes.length > 0 ? (
+        {currentShowtimes.length > 0 ? (
           <div className="p-4 grid grid-cols-2 gap-2.5">
-            {showtimes.map((show) => {
+            {currentShowtimes.map((show) => {
               const isIMAX = show.room?.name?.includes("IMAX");
               return (
                 <button
@@ -104,13 +149,13 @@ function BookingSidebar({ movie, showtimes }: { movie: Movie; showtimes: any[] }
             })}
           </div>
         ) : (
-          <div className="p-5 text-center text-white/40 text-sm">Hôm nay phim này chưa có lịch chiếu.</div>
+          <div className="p-5 text-center text-white/40 text-sm">Chưa có lịch chiếu cho ngày này.</div>
         )}
 
         <div className="px-4 pb-4 pt-1">
           <button
             onClick={handleProceed}
-            disabled={showtimes.length === 0}
+            disabled={currentShowtimes.length === 0}
             className="w-full py-3.5 rounded-lg bg-[#e8192c] text-white hover:bg-[#c8111f] disabled:bg-white/5 disabled:text-white/20 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 font-bold text-sm"
           >
             Chọn Ghế Ngồi
@@ -131,9 +176,12 @@ export function MovieDetail() {
     const fetchDetailAndShowtimes = async () => {
       if (!id) return;
       try {
-        const resMovie = await getMovieById(id);
-        if (resMovie.success && resMovie.data) {
-          setMovie(resMovie.data);
+        const resMovie = await fetch(`http://localhost:3000/api/movies/${id}`);
+        if (resMovie.ok) {
+          const jsonMovie = await resMovie.json();
+          if (jsonMovie.success && jsonMovie.data) {
+            setMovie(jsonMovie.data);
+          }
         }
 
         const resShowtimes = await fetch(`http://localhost:3000/api/movies/${id}/showtimes`);

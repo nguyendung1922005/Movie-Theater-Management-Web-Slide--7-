@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom"; 
-import { SNACK_ITEMS } from "../lib/commerceData";
 import {
   ChevronLeft, Check, Clock, Calendar, Crown,
   Plus, Minus, Film, Ticket, ChevronDown, ArrowRight,
@@ -76,7 +75,7 @@ function OrderSummaryCard({ orderData }: { orderData: OrderData }) {
   );
 }
 
-function SnacksSection({ cart, setCart }: { cart: Record<string, number>; setCart: React.Dispatch<React.SetStateAction<Record<string, number>>> }) {
+function SnacksSection({ cart, setCart, snackItems }: { cart: Record<string, number>; setCart: React.Dispatch<React.SetStateAction<Record<string, number>>>, snackItems: any[] }) {
   const [expanded, setExpanded] = useState(true);
   const adjust = (id: string, delta: number) => setCart((prev) => { const next = { ...prev }; const n = (next[id] || 0) + delta; if (n <= 0) delete next[id]; else next[id] = n; return next; });
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
@@ -89,7 +88,7 @@ function SnacksSection({ cart, setCart }: { cart: Record<string, number>; setCar
       </button>
       {expanded && (
         <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {SNACK_ITEMS?.map((item) => {
+          {snackItems.map((item) => {
             const qty = cart[item.id] || 0;
             return (
               <div key={item.id} className="flex items-center gap-3 p-3 rounded-xl transition-all" style={{ backgroundColor: qty > 0 ? "rgba(232,25,44,0.06)" : "rgba(255,255,255,0.02)", border: `1px solid ${qty > 0 ? "rgba(232,25,44,0.2)" : "rgba(255,255,255,0.06)"}` }}>
@@ -111,11 +110,11 @@ function SnacksSection({ cart, setCart }: { cart: Record<string, number>; setCar
   );
 }
 
-function CostBreakdown({ snackCart, orderData }: { snackCart: Record<string, number>; orderData: OrderData }) {
+function CostBreakdown({ snackCart, orderData, snackItems, discount }: { snackCart: Record<string, number>; orderData: OrderData, snackItems: any[], discount: number }) {
   const ticketSubtotal = orderData.seats.reduce((a, s) => a + s.price, 0);
-  const snackSubtotal = SNACK_ITEMS?.reduce((a, item) => a + (snackCart[item.id] || 0) * item.price, 0) || 0;
+  const snackSubtotal = snackItems.reduce((a, item) => a + (snackCart[item.id] || 0) * item.price, 0) || 0;
   const tax = Math.round(ticketSubtotal * TAX_RATE);
-  const grandTotal = ticketSubtotal + snackSubtotal + CONVENIENCE_FEE + tax;
+  const grandTotal = Math.max(0, ticketSubtotal + snackSubtotal + CONVENIENCE_FEE + tax - discount);
 
   return (
     <div className="rounded-2xl border border-white/8 overflow-hidden" style={{ backgroundColor: "#111118" }}>
@@ -131,6 +130,9 @@ function CostBreakdown({ snackCart, orderData }: { snackCart: Record<string, num
         {snackSubtotal > 0 && (
           <><div className="h-px bg-white/5 my-1" /><div className="flex items-center justify-between"><span className="text-white/55" style={{ fontSize: "0.85rem", fontWeight: 600 }}>Snacks</span><span className="text-white/55" style={{ fontSize: "0.85rem", fontWeight: 600 }}>{formatVND(snackSubtotal)}</span></div></>
         )}
+        {discount > 0 && (
+          <><div className="h-px bg-white/5 my-1" /><div className="flex items-center justify-between"><span className="text-[#10b981]" style={{ fontSize: "0.85rem", fontWeight: 600 }}>Discount</span><span className="text-[#10b981]" style={{ fontSize: "0.85rem", fontWeight: 600 }}>-{formatVND(discount)}</span></div></>
+        )}
         <div className="h-px bg-white/5 my-1" />
         <div className="flex items-center justify-between"><span className="text-white/35" style={{ fontSize: "0.8rem" }}>Fee & Tax</span><span className="text-white/35" style={{ fontSize: "0.8rem" }}>{formatVND(CONVENIENCE_FEE + tax)}</span></div>
         <div className="flex items-center justify-between pt-4 mt-3 border-t-2 border-dashed" style={{ borderColor: "rgba(255,255,255,0.08)" }}><span className="text-white" style={{ fontWeight: 700, fontSize: "1rem" }}>Total</span><span className="text-[#e8192c]" style={{ fontWeight: 900, fontSize: "1.35rem", letterSpacing: "-0.02em" }}>{formatVND(grandTotal)}</span></div>
@@ -140,28 +142,38 @@ function CostBreakdown({ snackCart, orderData }: { snackCart: Record<string, num
 }
 
 // ─── ĐÃ SỬA: NÚT THANH TOÁN BẮN API THẬT XUỐNG DB ───
-function ConfirmButton({ total, orderData }: { total: number; orderData: OrderData }) {
+function ConfirmButton({ total, orderData, snackCart }: { total: number; orderData: OrderData; snackCart: Record<string, number> }) {
   const [state, setState] = useState<"idle" | "processing" | "done">("idle");
   const navigate = useNavigate();
 
   const handleClick = async () => {
     if (state !== "idle") return;
 
+    // Chặn lỗi do người dùng F5 trang làm mất dữ liệu giỏ hàng
+    if (orderData.showtime.id === "0" || orderData.seats.length === 0) {
+      alert("Giỏ hàng rỗng hoặc đã hết hạn. Vui lòng chọn lại vé!");
+      navigate("/");
+      return;
+    }
+
     // Bắt buộc phải có token đăng nhập mới cho mua vé
     const token = localStorage.getItem("token");
     if (!token) {
       alert("Hãy đăng nhập trước khi mua vé");
-      navigate("/auth"); // Chuyển hướng ra trang login
+      navigate("/login"); 
       return;
     }
 
     setState("processing");
 
     try {
+      const comboItems = Object.entries(snackCart).map(([comboId, quantity]) => ({ comboId, quantity }));
+
       // Đóng gói data gửi xuống bếp
       const payload = {
         showtimeId: orderData.showtime.id,
-        seatIds: orderData.seats.map(s => s.id),
+        seats: orderData.seats.map(s => ({ id: s.id, price: s.price })),
+        comboItems,
         paymentMethod: "CREDIT_CARD",
         totalAmount: total
       };
@@ -182,6 +194,13 @@ function ConfirmButton({ total, orderData }: { total: number; orderData: OrderDa
       } else {
         alert(json.error || "Lỗi khi thanh toán!");
         setState("idle");
+        
+        // Nếu lỗi 401 (Hết hạn hoặc user bị xóa do reset DB) -> Ép đăng nhập lại
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          navigate("/login");
+        }
       }
     } catch (err) {
       alert("Lỗi kết nối server! Backend có đang chạy không đó?");
@@ -201,7 +220,66 @@ function ConfirmButton({ total, orderData }: { total: number; orderData: OrderDa
       {state === "done" && (
         <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.25)" }}>
           <p className="text-green-400 text-center" style={{ fontWeight: 700, fontSize: "0.88rem" }}>Đã chốt đơn vé thành công!</p>
-          <button onClick={() => navigate("/my-tickets")} className="px-3 py-1.5 rounded-lg border border-[#e8192c]/30 text-[#e8192c]">Mở Kho Vé Của Tôi</button>
+          <button onClick={() => navigate("/dashboard")} className="px-3 py-1.5 rounded-lg border border-[#e8192c]/30 text-[#e8192c]">Mở Kho Vé Của Tôi</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VoucherSection({ setDiscount, ticketSubtotal }: { setDiscount: React.Dispatch<React.SetStateAction<number>>, ticketSubtotal: number }) {
+  const [code, setCode] = useState("");
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  const handleApply = () => {
+    if (code.toUpperCase() === "CINEMA20") {
+      setDiscount(Math.round(ticketSubtotal * 0.2));
+      setStatus("success");
+      setMessage("Đã áp dụng giảm giá 20%!");
+    } else if (code.toUpperCase() === "WELCOME50K") {
+      setDiscount(50000);
+      setStatus("success");
+      setMessage("Đã giảm 50.000đ!");
+    } else {
+      setDiscount(0);
+      setStatus("error");
+      setMessage("Mã giảm giá không hợp lệ. Hãy thử CINEMA20");
+    }
+  };
+
+  const handleRemove = () => {
+    setCode("");
+    setDiscount(0);
+    setStatus("idle");
+    setMessage("");
+  };
+
+  return (
+    <div className="rounded-2xl border border-white/8 overflow-hidden p-5" style={{ backgroundColor: "#111118" }}>
+      <p className="text-white/50 uppercase mb-3" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.14em" }}>Mã Giảm Giá / Voucher</p>
+      {status === "success" ? (
+        <div className="flex items-center justify-between p-3 rounded-xl border border-green-500/30 bg-green-500/10">
+          <div>
+            <span className="text-green-400 font-bold">{code.toUpperCase()}</span>
+            <p className="text-green-400/80 text-xs mt-0.5">{message}</p>
+          </div>
+          <button onClick={handleRemove} className="text-white/50 hover:text-white text-sm">Gỡ</button>
+        </div>
+      ) : (
+        <div>
+          <div className="flex gap-2">
+            <input 
+              value={code} 
+              onChange={e => { setCode(e.target.value); setStatus("idle"); setMessage(""); }}
+              placeholder="Nhập mã (VD: CINEMA20)"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-[#e8192c]"
+            />
+            <button onClick={handleApply} className="bg-[#e8192c] hover:bg-[#c8111f] text-white px-5 rounded-xl font-bold transition-all">
+              Áp Dụng
+            </button>
+          </div>
+          {status === "error" && <p className="text-[#e8192c] text-xs mt-2">{message}</p>}
         </div>
       )}
     </div>
@@ -212,6 +290,8 @@ export function Checkout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [snackCart, setSnackCart] = useState<Record<string, number>>({});
+  const [snackItems, setSnackItems] = useState<any[]>([]);
+  const [discount, setDiscount] = useState(0);
 
   const orderData: OrderData = location.state?.orderData || {
     movie: { id: "0", title: "Vui lòng quay lại chọn ghế!", posterUrl: "https://via.placeholder.com/300" },
@@ -219,10 +299,30 @@ export function Checkout() {
     seats: []
   };
 
+  // Lấy dữ liệu Combo từ backend database
+  useEffect(() => {
+    const fetchSnacks = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/combos");
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = data.map((c: any) => ({
+            id: c.id, name: c.name, price: c.price, 
+            emoji: c.name.toLowerCase().includes("bắp") ? "🍿" : "🥤"
+          }));
+          setSnackItems(mapped);
+        }
+      } catch (err) {
+        console.error("Lỗi khi tải danh sách bắp nước từ DB:", err);
+      }
+    };
+    fetchSnacks();
+  }, []);
+
   const ticketSubtotal = orderData.seats.reduce((a, s) => a + s.price, 0);
-  const snackSubtotal = SNACK_ITEMS?.reduce((a, item) => a + (snackCart[item.id] || 0) * item.price, 0) || 0;
+  const snackSubtotal = snackItems.reduce((a, item) => a + (snackCart[item.id] || 0) * item.price, 0) || 0;
   const tax = Math.round(ticketSubtotal * TAX_RATE);
-  const grandTotal = ticketSubtotal + snackSubtotal + CONVENIENCE_FEE + tax;
+  const grandTotal = Math.max(0, ticketSubtotal + snackSubtotal + CONVENIENCE_FEE + tax - discount);
 
   return (
     <div className="min-h-screen w-full" style={{ backgroundColor: "#0a0a0f", color: "#ffffff", fontFamily: "'Inter','system-ui',sans-serif" }}>
@@ -247,12 +347,12 @@ export function Checkout() {
           <div className="flex flex-col lg:flex-row gap-6 items-start">
             <div className="flex-1 min-w-0 flex flex-col gap-5">
               <OrderSummaryCard orderData={orderData} />
-              <SnacksSection cart={snackCart} setCart={setSnackCart} />
-              <CostBreakdown snackCart={snackCart} orderData={orderData} />
+              <SnacksSection cart={snackCart} setCart={setSnackCart} snackItems={snackItems} />
+              <VoucherSection setDiscount={setDiscount} ticketSubtotal={ticketSubtotal} />
+              <CostBreakdown snackCart={snackCart} orderData={orderData} snackItems={snackItems} discount={discount} />
             </div>
             <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col gap-5 lg:sticky lg:top-20">
-              {/* ĐÃ SỬA: Phải truyền thêm orderData vào trong Nút Thanh Toán */}
-              <ConfirmButton total={grandTotal} orderData={orderData} />
+              <ConfirmButton total={grandTotal} orderData={orderData} snackCart={snackCart} />
             </div>
           </div>
         )}

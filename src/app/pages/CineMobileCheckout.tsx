@@ -180,7 +180,7 @@ export function CineMobileCheckout() {
             <span style={{ fontSize: "0.65rem", color: C.dim }}>Optional</span>
           </div>
 
-          <div className="flex flex-col divide-y" style={{ divideColor: C.border }}>
+          <div className="flex flex-col divide-y" style={{ borderColor: C.border }}>
             {SNACKS.map(snack => {
               const qty = snackQty[snack.id] ?? 0;
               return (
@@ -224,7 +224,7 @@ export function CineMobileCheckout() {
             <h2 className="text-white" style={{ fontWeight: 800, fontSize: "0.92rem" }}>Payment Method</h2>
           </div>
 
-          <div className="flex flex-col gap-0 divide-y" style={{ divideColor: C.border }}>
+          <div className="flex flex-col gap-0 divide-y" style={{ borderColor: C.border }}>
             {PAYMENT_METHODS.map(pm => (
               <button key={pm.id} onClick={() => setPayment(pm.id)}
                 className="flex items-center gap-3.5 px-4 py-4 text-left w-full transition-all"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { AdminLayout } from "../components/AdminLayout";
 import {
@@ -415,6 +415,30 @@ export function AdminDashboard() {
   // Only chart-view toggle remains — navigation state is now
   // handled by AdminLayout + React Router (useLocation).
   const [chartView, setChartView] = useState<"revenue" | "tickets">("revenue");
+  const [realChartData, setRealChartData] = useState(REVENUE_DATA);
+  const [totalRevenue, setTotalRevenue] = useState(3286000000);
+  const [totalTickets, setTotalTickets] = useState(43040);
+
+  useEffect(() => {
+    const fetchRevenueData = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/admin/revenue");
+        const json = await res.json();
+        if (json.success) {
+          setRealChartData(json.chartData);
+          setTotalRevenue(json.totalRevenue);
+          setTotalTickets(json.totalTickets);
+        }
+      } catch (err) {
+        console.error("Lỗi kết nối API Doanh thu:", err);
+      }
+    };
+    fetchRevenueData();
+  }, []);
+
+  const bestMonth = useMemo(() => {
+    return [...realChartData].sort((a, b) => b.revenue - a.revenue)[0] || { month: "N/A", revenue: 0 };
+  }, [realChartData]);
 
   return (
     <AdminLayout
@@ -427,7 +451,7 @@ export function AdminDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <SummaryCard
               label="Total Revenue"
-              value="₫442M"
+              value={`₫${(totalRevenue / 1000000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`}
               delta={+18.4}
               sub="vs last month"
               icon={<DollarSign size={17} />}
@@ -437,7 +461,7 @@ export function AdminDashboard() {
             />
             <SummaryCard
               label="Tickets Sold"
-              value="5,120"
+              value={totalTickets.toLocaleString("en-US")}
               delta={+11.7}
               sub="vs last month"
               icon={<Ticket size={17} />}
@@ -510,12 +534,12 @@ export function AdminDashboard() {
               <div className="flex items-center gap-6">
                 <div>
                   <p className="text-white/30 uppercase" style={{ fontSize: "0.58rem", fontWeight: 700, letterSpacing: "0.15em" }}>YTD Total</p>
-                  <p className="text-white" style={{ fontWeight: 900, fontSize: "1.45rem", letterSpacing: "-0.03em" }}>₫3,286M</p>
+                  <p className="text-white" style={{ fontWeight: 900, fontSize: "1.45rem", letterSpacing: "-0.03em" }}>{`₫${(totalRevenue / 1000000).toLocaleString("en-US", { maximumFractionDigits: 1 })}M`}</p>
                 </div>
                 <div className="h-10 w-px bg-white/6" />
                 <div>
                   <p className="text-white/30 uppercase" style={{ fontSize: "0.58rem", fontWeight: 700, letterSpacing: "0.15em" }}>Best Month</p>
-                  <p className="text-white" style={{ fontWeight: 800, fontSize: "1rem" }}>March · ₫442M</p>
+                  <p className="text-white" style={{ fontWeight: 800, fontSize: "1rem" }}>{bestMonth.month} · ₫{bestMonth.revenue.toLocaleString("en-US")}M</p>
                 </div>
                 <div className="h-10 w-px bg-white/6" />
                 <div>
@@ -527,7 +551,7 @@ export function AdminDashboard() {
               {/* Chart */}
               <div style={{ height: "220px" }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={REVENUE_DATA} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
+                  <AreaChart data={realChartData} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
                     <defs>
                       <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%"   stopColor={C.red}  stopOpacity={0.35} />
@@ -677,12 +701,13 @@ export function AdminDashboard() {
                   >
                     <Filter size={11} /> Filter
                   </button>
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white transition-all"
-                    style={{ fontSize: "0.72rem", fontWeight: 700, backgroundColor: C.redSoft, border: `1px solid ${C.redGlow}`, color: C.red }}
+                  <Link
+                    to="/admin/movies"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white transition-all no-underline"
+                    style={{ fontSize: "0.72rem", fontWeight: 700, backgroundColor: C.redSoft, border: `1px solid ${C.redGlow}`, color: C.red, textDecoration: "none" }}
                   >
                     View All <ChevronRight size={11} />
-                  </button>
+                  </Link>
                 </div>
               </div>
 
@@ -727,7 +752,7 @@ export function AdminDashboard() {
                 <button className="text-white/25 hover:text-white/60 transition-colors" style={{ fontSize: "0.7rem" }}>View all</button>
               </div>
 
-              <div className="flex-1 divide-y" style={{ divideColor: C.border }}>
+              <div className="flex-1 divide-y" style={{ borderColor: C.border }}>
                 {RECENT_ACTIVITY.map((a, i) => (
                   <div
                     key={i}
@@ -777,24 +802,26 @@ export function AdminDashboard() {
             <div className="h-5 w-px bg-white/8 hidden sm:block" />
             <div className="flex items-center gap-2 flex-wrap">
               {[
-                { label: "Add Movie",     icon: <Film size={13} />,    color: C.red    },
-                { label: "New Showtime",  icon: <Clock size={13} />,   color: C.blue   },
-                { label: "Add Promotion", icon: <Zap size={13} />,     color: C.amber  },
-                { label: "Manage Users",  icon: <Users size={13} />,   color: C.purple },
-                { label: "Run Report",    icon: <BarChart3 size={13}/>, color: C.green  },
-              ].map(({ label, icon, color }) => (
-                <button
+                { label: "Add Movie",     icon: <Film size={13} />,    color: C.red,    to: "/admin/movies" },
+                { label: "New Showtime",  icon: <Clock size={13} />,   color: C.blue,   to: "/admin/showtimes" },
+                { label: "Add Promotion", icon: <Zap size={13} />,     color: C.amber,  to: "/admin/promotions" },
+                { label: "Manage Users",  icon: <Users size={13} />,   color: C.purple, to: "/admin/users" },
+                { label: "Run Report",    icon: <BarChart3 size={13}/>, color: C.green,  to: "/admin/revenue" },
+              ].map(({ label, icon, color, to }) => (
+                <Link
                   key={label}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all hover:-translate-y-0.5"
+                  to={to}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all hover:-translate-y-0.5 no-underline"
                   style={{
                     fontSize: "0.76rem", fontWeight: 600,
                     backgroundColor: `${color}0d`,
                     borderColor: `${color}25`,
                     color,
+                    textDecoration: "none"
                   }}
                 >
                   {icon} {label}
-                </button>
+                </Link>
               ))}
             </div>
           </div>

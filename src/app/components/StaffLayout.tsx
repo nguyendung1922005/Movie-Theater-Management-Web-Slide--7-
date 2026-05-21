@@ -42,13 +42,15 @@ export const SC = {
 
 /* ══════════════════════════════════ RBAC ═══════════════════════════════════ */
 
-export type StaffRole = "counter_staff" | "ticket_checker" | "general_staff" | "cinema_manager";
+export type StaffRole = "counter_staff" | "ticket_checker" | "general_staff" | "cinema_manager" | "STAFF" | "ADMIN";
 
-const ROLE_META: Record<StaffRole, { label: string; short: string }> = {
+const ROLE_META: Record<string, { label: string; short: string }> = {
   counter_staff: { label: "Counter Staff · NV Quầy vé", short: "QK" },
   ticket_checker: { label: "Ticket Checker · NV Soát vé", short: "SV" },
   general_staff: { label: "General Staff · Nhân viên", short: "NV" },
   cinema_manager: { label: "Cinema Manager · Quản lý", short: "QL" },
+  STAFF: { label: "Staff · Nhân viên rạp", short: "NV" },
+  ADMIN: { label: "System Admin · Quản trị", short: "AD" },
 };
 
 const LS_ROLE = "staff_role";
@@ -63,21 +65,21 @@ interface NavEntry {
 }
 
 /** Shared items visible to every role */
-const SHARED_ROLE_SET: StaffRole[] = ["counter_staff", "ticket_checker", "general_staff", "cinema_manager"];
+const SHARED_ROLE_SET: StaffRole[] = ["counter_staff", "ticket_checker", "general_staff", "cinema_manager", "STAFF", "ADMIN"];
 
 const ALL_NAV: NavEntry[] = [
-  { id: "pos", label: "Counter Sales (POS)", href: "/staff/pos", icon: Laptop, roles: ["counter_staff", "cinema_manager"] },
-  { id: "members", label: "Member Registration", href: "/staff/members", icon: UserPlus, roles: ["counter_staff", "cinema_manager"] },
-  { id: "vouchers", label: "Voucher Lookup", href: "/staff/vouchers", icon: Search, roles: ["counter_staff", "cinema_manager"] },
-  { id: "refunds", label: "Refund / Cancel", href: "/staff/refunds", icon: Undo2, roles: ["counter_staff", "cinema_manager"] },
-  { id: "scanner", label: "QR Ticket Scanner", href: "/staff/scanner", icon: ScanQrCode, roles: ["ticket_checker", "cinema_manager"] },
-  { id: "finance", label: "Finance Dashboard", href: "/staff/finance", icon: DollarSign, roles: ["cinema_manager"] },
+  { id: "pos", label: "Counter Sales (POS)", href: "/staff/pos", icon: Laptop, roles: ["counter_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "members", label: "Member Registration", href: "/staff/members", icon: UserPlus, roles: ["counter_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "vouchers", label: "Voucher Lookup", href: "/staff/vouchers", icon: Search, roles: ["counter_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "refunds", label: "Refund / Cancel", href: "/staff/refunds", icon: Undo2, roles: ["counter_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "scanner", label: "QR Ticket Scanner", href: "/staff/scanner", icon: ScanQrCode, roles: ["ticket_checker", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "finance", label: "Finance Dashboard", href: "/finance/dashboard", icon: DollarSign, roles: ["cinema_manager", "ADMIN"] },
   { id: "shift", label: "Shift Management", href: "/staff/shift", icon: ClockIcon, roles: SHARED_ROLE_SET },
   { id: "profile", label: "Profile Settings", href: "/staff/profile", icon: Settings, roles: SHARED_ROLE_SET },
   /** General staff ops (legacy grids) */
-  { id: "showtimes", label: "Showtime Grid", href: "/staff/showtimes", icon: CalendarRange, roles: ["general_staff", "cinema_manager"] },
-  { id: "movies", label: "Movie Status", href: "/staff/movies", icon: Film, roles: ["general_staff", "cinema_manager"] },
-  { id: "combos", label: "Snack Combos", href: "/staff/combos", icon: Coffee, roles: ["general_staff", "cinema_manager"] },
+  { id: "showtimes", label: "Showtime Grid", href: "/staff/showtimes", icon: CalendarRange, roles: ["general_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "movies", label: "Movie Status", href: "/staff/movies", icon: Film, roles: ["general_staff", "cinema_manager", "STAFF", "ADMIN"] },
+  { id: "combos", label: "Snack Combos", href: "/staff/combos", icon: Coffee, roles: ["general_staff", "cinema_manager", "STAFF", "ADMIN"] },
 ];
 
 function navFor(role: StaffRole): NavEntry[] {
@@ -230,11 +232,21 @@ export function StaffPortalLayout() {
   async function toggleClock() {
     if (!clockedIn) {
       try {
-        const now = await clockIn();
-        setClockInAt(now);
-        setShiftElapsedSec(0);
-        setClockedIn(true);
-        toast.success("Clocked in", { description: "Shift timer started." });
+        const token = localStorage.getItem("token");
+        const res = await fetch("http://localhost:3000/api/staff/shift/clock-in", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          const now = new Date(data.data.startTime);
+          setClockInAt(now);
+          setShiftElapsedSec(0);
+          setClockedIn(true);
+          toast.success("Clocked in", { description: "Ca làm việc đã bắt đầu." });
+        } else {
+          toast.error("Lỗi", { description: data.error });
+        }
       } catch (error) {
         toast.error("Failed to clock in", { description: "Please try again." });
       }
@@ -253,35 +265,40 @@ export function StaffPortalLayout() {
     if (!clockInAt) return;
     const raw = reportedCashInput.replace(/\D/g, "");
     const reportedCashVnd = Number(raw) || 0;
-    if (role === "counter_staff" && reportedCashVnd <= 0) {
+    
+    const isCashRole = role === "counter_staff" || role === "STAFF" || role === "ADMIN";
+    if (isCashRole && reportedCashVnd <= 0) {
       toast.error("Enter a cash total", { description: "Declare the drawer count in ₫ before ending shift." });
       return;
     }
     
     try {
-      await appendShiftAudit({
-        id: `SHIFT-${Date.now()}`,
-        role: role as ShiftAuditRole,
-        clockInIso: clockInAt.toISOString(),
-        clockOutIso: new Date().toISOString(),
-        durationSec: shiftElapsedSec,
-        reportedCashVnd: role === "counter_staff" ? reportedCashVnd : 0,
-        approved: false,
+      const token = localStorage.getItem("token");
+      const res = await fetch("http://localhost:3000/api/staff/shift/clock-out", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ reportedCash: isCashRole ? reportedCashVnd : 0 })
       });
-      
-      await clockOut();
-      setClockedIn(false);
-      setClockInAt(null);
-      setShiftElapsedSec(0);
-      setClockOutFormOpen(false);
-      setReportedCashInput("");
-      setSummaryOpen(true);
-      toast.success("Shift ended", {
-        description:
-          role === "counter_staff"
-            ? `Cash declaration ${reportedCashVnd.toLocaleString("vi-VN")} ₫ saved for Finance · Shift Audit.`
-            : "Shift record saved (no cash declared for this role).",
-      });
+      const data = await res.json();
+
+      if (data.success) {
+        setClockedIn(false);
+        setClockInAt(null);
+        setShiftElapsedSec(0);
+        setClockOutFormOpen(false);
+        setReportedCashInput("");
+        setSummaryOpen(true);
+        toast.success("Shift ended", {
+          description: isCashRole
+            ? `Cash declaration ${reportedCashVnd.toLocaleString("vi-VN")} ₫ saved for Finance.`
+            : "Shift record saved.",
+        });
+      } else {
+        toast.error("Failed to clock out", { description: data.error });
+      }
     } catch (error) {
       toast.error("Failed to clock out", { description: "Please try again." });
     }
@@ -590,7 +607,7 @@ export function StaffPortalLayout() {
               </p>
             </div>
             <div className="px-6 py-5 space-y-4">
-              {role === "counter_staff" ? (
+            {role === "counter_staff" || role === "STAFF" || role === "ADMIN" ? (
                 <label className="block">
                   <span className="text-white/50 text-xs font-bold uppercase tracking-widest">Reported cash (₫)</span>
                   <input

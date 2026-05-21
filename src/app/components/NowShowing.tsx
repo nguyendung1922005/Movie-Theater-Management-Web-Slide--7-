@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { MovieCard } from "./MovieCard";
-import { getActiveMovies, Movie } from "../../lib/movies"; // Chú ý đường dẫn này, nếu báo lỗi đỏ thì sửa lại cho đúng với cấu trúc thư mục của mày nhé
+
+// Bỏ import hàm mock, dùng Movie thật từ DB
+interface Movie {
+  id: string;
+  title: string;
+  posterUrl: string;
+  duration: number;
+  status: 'NOW_SHOWING' | 'COMING_SOON' | 'ENDED';
+  releaseDate: string;
+}
 
 export function NowShowing() {
   // 1. Tạo giỏ chứa phim (ban đầu là giỏ rỗng)
@@ -10,9 +19,15 @@ export function NowShowing() {
   // 2. Tự động gọi API lấy phim ngay khi mở trang web
   useEffect(() => {
     const fetchMovies = async () => {
-      const result = await getActiveMovies();
-      if (result.success && result.data) {
-        setMovies(result.data); // Đổ phim lấy được từ bếp vào giỏ
+      try {
+        const res = await fetch('http://localhost:3000/api/movies');
+        if (res.ok) {
+          const allMovies = await res.json();
+          // Lọc chỉ lấy những phim đang chiếu
+          setMovies(allMovies.filter((m: Movie) => m.status === 'NOW_SHOWING'));
+        }
+      } catch (err) {
+        console.error("Lỗi tải phim từ backend:", err);
       }
     };
     fetchMovies();

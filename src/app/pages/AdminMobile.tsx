@@ -411,7 +411,7 @@ function NotifPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
         <span className="text-white" style={{ fontWeight: 700, fontSize: "0.85rem" }}>Notifications</span>
         <span style={{ fontSize: "0.68rem", fontWeight: 600, color: C.red, cursor: "pointer" }}>Mark all read</span>
       </div>
-      <div className="divide-y" style={{ divideColor: C.border }}>
+      <div className="divide-y" style={{ borderColor: C.border }}>
         {ACTIVITY.map((a, i) => (
           <div key={i} className="flex items-start gap-3 px-4 py-3">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"

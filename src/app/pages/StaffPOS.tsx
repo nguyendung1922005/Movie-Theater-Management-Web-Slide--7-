@@ -19,11 +19,6 @@ import {
   type TicketRecord,
 } from "../lib/ticketsData";
 import { formatDigitsAsCurrencyTyping } from "../lib/inputFormat";
-import { useRealtimeSeats, type Seat } from "../../hooks/useRealtimeSeats";
-
-const ROWS = "HGFEDCBA".split("");
-const COLMIN = 3;
-const COLMAX = 14;
 
 function formatVND(n: number) {
   return n.toLocaleString("vi-VN") + " ₫";
@@ -69,18 +64,38 @@ function BankingQrPlaceholder() {
 }
 
 export function StaffPOS() {
-  const showFp = useMemo(
-    () => showFingerprint(BOOKING.movie, BOOKING.date, BOOKING.time, BOOKING.hall),
-    [],
-  );
+  // Dữ liệu suất chiếu và ghế thật từ Backend
+  const [currentShowtime, setCurrentShowtime] = useState<any>(null);
+  const [realtimeSeats, setRealtimeSeats] = useState<any[]>([]);
+  const [loadingSeats, setLoadingSeats] = useState(true);
 
-  // Use real-time seats from database
-  const { seats: realtimeSeats, loading: loadingSeats, toggleSeat: toggleRealtimeSeat } = useRealtimeSeats(showFp);
+  useEffect(() => {
+    const fetchRealData = async () => {
+      try {
+        const stRes = await fetch("http://localhost:3000/api/showtimes");
+        const stData = await stRes.json();
+        if (stData.length > 0) {
+          const st = stData[0]; // Tạm thời lấy suất chiếu đầu tiên
+          setCurrentShowtime(st);
+          
+          const seatRes = await fetch(`http://localhost:3000/api/showtimes/${st.id}/seats`);
+          const seatData = await seatRes.json();
+          if (seatData.success) {
+            setRealtimeSeats(seatData.seats);
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Lỗi lấy dữ liệu từ server!");
+      } finally {
+        setLoadingSeats(false);
+      }
+    };
+    fetchRealData();
+  }, []);
 
-  const bookingSeatIds = useMemo(() => BOOKING.seats.map((s) => s.id), []);
-  const [seatQty, setSeatQty] = useState<Record<string, number>>(() =>
-    Object.fromEntries(bookingSeatIds.map((id) => [id, 0])),
-  );
+  // Mảng các ID ghế đang chọn
+  const [selectedSeatIds, setSelectedSeatIds] = useState<string[]>([]);
   const [snackQty, setSnackQty] = useState<Record<string, number>>({});
 
   const [modalPhase, setModalPhase] = useState<ModalPhase>("closed");
@@ -89,29 +104,18 @@ export function StaffPOS() {
   /** Cash tender (formatted) — optional UX when paying cash */
   const [cashTenderFormatted, setCashTenderFormatted] = useState("");
 
-  // Create a map of seat ID to status from real-time data
-  const seatStatusMap = useMemo(() => {
-    const map = new Map<string, 'available' | 'selected' | 'occupied'>();
-    realtimeSeats.forEach(seat => {
-      map.set(seat.id, seat.status);
-    });
-    return map;
-  }, [realtimeSeats]);
-
-  const soldSet = useMemo(() => {
-    const set = new Set<string>();
-    realtimeSeats.forEach(seat => {
-      if (seat.status === 'occupied') {
-        set.add(seat.id);
-      }
-    });
-    return set;
-  }, [realtimeSeats]);
-
   const seatTotal = useMemo(
-    () =>
-      BOOKING.seats.filter((s) => !soldSet.has(s.id)).reduce((acc, s) => acc + s.price * (seatQty[s.id] ?? 0), 0),
-    [soldSet, seatQty],
+    () => {
+      let total = 0;
+      selectedSeatIds.forEach(id => {
+        const seat = realtimeSeats.find(s => s.id === id);
+        if (seat) {
+          total += seat.type === "VIP" ? (currentShowtime?.priceBase || 80000) + 20000 : (currentShowtime?.priceBase || 80000);
+        }
+      });
+      return total;
+    },
+    [selectedSeatIds, realtimeSeats, currentShowtime]
   );
 
   const snackTotal = useMemo(
@@ -131,20 +135,13 @@ export function StaffPOS() {
     setModalPhase("pay");
   }, [grand]);
 
-  function toggleSeat(bookingSeatId: string) {
-    if (soldSet.has(bookingSeatId)) return;
-    
-    // Use real-time toggle from hook
-    toggleRealtimeSeat(bookingSeatId);
-    
-    // Update local quantity state for pricing
-    setSeatQty((prev) => {
-      const next = { ...prev };
-      if (!BOOKING.seats.some((s) => s.id === bookingSeatId)) return next;
-      const q = next[bookingSeatId] ?? 0;
-      next[bookingSeatId] = q > 0 ? 0 : 1;
-      return next;
-    });
+  function toggleSeat(seat: any) {
+    if (seat.isBooked) return;
+    setSelectedSeatIds((prev) => 
+      prev.includes(seat.id) 
+        ? prev.filter((id) => id !== seat.id) 
+        : [...prev, seat.id]
+    );
   }
 
   function setSnack(id: string, delta: number) {
@@ -162,9 +159,12 @@ export function StaffPOS() {
       toast.error("Choose a payment method.");
       return;
     }
-    const seatLines = BOOKING.seats
-      .filter((s) => !soldSet.has(s.id) && (seatQty[s.id] ?? 0) > 0)
-      .map((s) => ({ id: s.id, tier: s.tier, price: s.price }));
+    const seatLines = selectedSeatIds.map(id => {
+      const seat = realtimeSeats.find(s => s.id === id);
+      const price = seat.type === "VIP" ? (currentShowtime?.priceBase || 80000) + 20000 : (currentShowtime?.priceBase || 80000);
+      return { id: `${seat.row}${seat.number}`, tier: seat.type, price };
+    });
+    
     const snackLines = SNACK_ITEMS.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => ({
       name: s.name,
       qty: snackQty[s.id] ?? 0,
@@ -190,41 +190,34 @@ export function StaffPOS() {
 
   function finalizePrintedSale() {
     if (!sale) return;
-    const seatIds = sale.seatLines.map((l) => l.id);
-    const poster = TICKETS[0]?.poster ?? "";
-    const ticketRev = sale.seatLines.reduce((a, l) => a + l.price, 0);
-    const snackRev = sale.snackLines.reduce((a, l) => a + l.sub, 0);
-    const record: TicketRecord = {
-      id: `TK-POS-${Date.now()}`,
-      movie: BOOKING.movie,
-      genre: "Counter · Offline sale",
-      poster,
-      date: BOOKING.date,
-      shortDate: BOOKING.date.replace(/^[^,]+,\s*/, "").trim() || BOOKING.date,
-      time: BOOKING.time,
-      hall: BOOKING.hall,
-      seats: seatIds,
-      format: BOOKING.format,
-      price: sale.total,
-      status: "upcoming",
-      bookingRef: sale.bookingRef,
-      cinema: BOOKING.theater,
-      accentColor: "#e8192c",
-      posPayMethod: sale.payMethod,
-      posTicketRevenue: ticketRev,
-      posSnackRevenue: snackRev,
-    };
-    appendPosIssuedTicket(record);
-    if (seatIds.length > 0) {
-      appendSoldSeatsForShow(showFp, seatIds);
-      // Mark seats as occupied in database
-      seatIds.forEach(seatId => {
-        toggleRealtimeSeat(seatId);
-      });
-    }
-    setSeatQty(() => Object.fromEntries(bookingSeatIds.map((id) => [id, 0])));
-    setSnackQty({});
-    closeModal();
+    
+    // Gọi API lưu xuống DB thật
+    const token = localStorage.getItem("token");
+    fetch("http://localhost:3000/api/bookings", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        showtimeId: currentShowtime.id,
+        seatIds: selectedSeatIds,
+        paymentMethod: sale.payMethod === "cash" ? "CASH" : sale.payMethod === "card" ? "CREDIT_CARD" : "E_WALLET",
+        totalAmount: sale.total
+      })
+    }).then(res => res.json()).then(data => {
+      if (data.success) {
+        // Cập nhật lại ghế thành isBooked
+        setRealtimeSeats(prev => prev.map(s => selectedSeatIds.includes(s.id) ? { ...s, isBooked: true } : s));
+        setSelectedSeatIds([]);
+        setSnackQty({});
+        closeModal();
+      } else {
+        toast.error("Lỗi khi lưu đơn hàng vào DB: " + data.error);
+      }
+    }).catch(err => {
+      toast.error("Không thể kết nối đến server");
+    });
   }
 
   function handlePrintReceipt() {
@@ -251,11 +244,13 @@ export function StaffPOS() {
   };
 
   return (
-    <StaffRouteGuard allow={["counter_staff"]}>
+    <StaffRouteGuard allow={["STAFF", "ADMIN"]}>
       <Toaster theme="dark" position="top-center" richColors closeButton />
       <StaffPage
         title="Counter Sales (POS)"
-        subtitle={`${BOOKING.movie} · ${BOOKING.date} · ${BOOKING.format} · ${BOOKING.hall}`}
+        subtitle={currentShowtime 
+          ? `${currentShowtime.movie.title} · ${new Date(currentShowtime.startTime).toLocaleTimeString("vi-VN")} · ${currentShowtime.room.name}`
+          : "Đang tải suất chiếu..."}
         actions={
           <button
             type="button"
@@ -284,7 +279,7 @@ export function StaffPOS() {
                 Seat mini-map
               </h2>
               <span className="ml-auto text-white/35" style={{ fontSize: "0.72rem" }}>
-                Tap booking seats ({BOOKING.theater})
+                {currentShowtime?.room?.name}
               </span>
             </div>
 
@@ -303,59 +298,50 @@ export function StaffPOS() {
               Screen
             </div>
 
-            <div className="overflow-x-auto">
-              <div className="flex gap-1 mb-1 pl-8">
-                {Array.from({ length: COLMAX - COLMIN + 1 }, (_, i) => (
-                  <div
-                    key={i}
-                    className="w-7 shrink-0 text-center text-white/30 font-mono"
-                    style={{ fontSize: "0.62rem", fontWeight: 700 }}
-                  >
-                    {COLMIN + i}
-                  </div>
-                ))}
-              </div>
-              {ROWS.map((row) => (
-                <div key={row} className="flex items-center gap-1 mb-1">
-                  <div className="w-8 shrink-0 text-white/35 font-bold text-xs text-right pr-2">{row}</div>
-                  {Array.from({ length: COLMAX - COLMIN + 1 }, (_, i) => {
-                    const id = `${row}${COLMIN + i}`;
-                    const meta = BOOKING.seats.find((s) => s.id === id);
-                    const realtimeStatus = seatStatusMap.get(id) || 'available';
-                    const sold = realtimeStatus === 'occupied';
-                    const selected = realtimeStatus === 'selected';
-                    const qty = meta ? (seatQty[meta.id] ?? 0) : 0;
-                    const isPremium = meta?.tier === "Premium";
+            <div className="overflow-x-auto flex flex-col items-center">
+              {loadingSeats ? (
+                <div className="text-white/50 py-10">Đang tải ghế...</div>
+              ) : (
+                Array.from(new Set(realtimeSeats.map((s) => s.row))).sort().map((row) => (
+                  <div key={row} className="flex items-center gap-2 mb-2">
+                    <div className="w-6 shrink-0 text-white/35 font-bold text-xs text-right pr-2">{row}</div>
+                    {realtimeSeats
+                      .filter((s) => s.row === row)
+                      .sort((a, b) => a.number - b.number)
+                      .map((seat) => {
+                        const sold = seat.isBooked;
+                        const selected = selectedSeatIds.includes(seat.id);
+                        const isPremium = seat.type === "VIP";
+                        const color = isPremium ? "#f5a623" : "#4a90e2";
+                        
                     return (
                       <button
-                        key={id}
+                        key={seat.id}
                         type="button"
-                        disabled={!meta || sold}
-                        onClick={() => meta && toggleSeat(meta.id)}
+                        disabled={sold}
+                        onClick={() => toggleSeat(seat)}
                         title={
                           sold
-                            ? `${meta?.id} · Occupied`
+                            ? `Ghế ${seat.row}${seat.number} · Đã bán`
                             : selected
-                              ? `${meta?.id} · Selected`
-                              : meta
-                                ? `${meta.id} (${meta.tier})`
-                                : id
+                              ? `Ghế ${seat.row}${seat.number} · Đang chọn`
+                              : `Ghế ${seat.row}${seat.number} (${seat.type})`
                         }
-                        className="w-7 h-7 rounded-md shrink-0 transition-all disabled:opacity-100 disabled:cursor-not-allowed active:scale-95"
+                        className="w-8 h-8 rounded-md shrink-0 transition-all disabled:opacity-100 disabled:cursor-not-allowed active:scale-95 text-[10px] font-bold text-white flex items-center justify-center"
                         style={{
                           border: sold
                             ? `1px solid #7f1d1d`
                             : selected
                               ? `1px solid ${SC.red}`
-                              : meta
-                                ? `1px solid ${meta.color}88`
+                              : isPremium
+                                ? `1px solid ${color}88`
                                 : `1px solid rgba(255,255,255,0.06)`,
                           backgroundColor: sold
                             ? "rgba(127,29,29,0.85)"
                             : selected
                               ? "rgba(232,25,44,0.22)"
-                              : meta
-                                ? `${meta.color}18`
+                              : isPremium
+                                ? `${color}18`
                                 : "rgba(255,255,255,0.04)",
                           boxShadow:
                             selected
@@ -364,11 +350,14 @@ export function StaffPOS() {
                                 ? `0 0 10px rgba(139,92,246,0.18)`
                                 : "none",
                         }}
-                      />
+                      >
+                        {sold ? "X" : `${seat.row}${seat.number}`}
+                      </button>
                     );
                   })}
-                </div>
-              ))}
+                  </div>
+                ))
+              )}
             </div>
 
             <p className="mt-4 text-white/35" style={{ fontSize: "0.72rem", lineHeight: 1.6 }}>
@@ -514,16 +503,19 @@ export function StaffPOS() {
                         Order summary
                       </p>
                       <ul className="space-y-2 text-sm" style={{ color: SC.muted }}>
-                        {BOOKING.seats
-                          .filter((s) => !soldSet.has(s.id) && (seatQty[s.id] ?? 0) > 0)
-                          .map((s) => (
-                            <li key={s.id} className="flex justify-between gap-3">
-                              <span className="text-white font-mono">{s.id}</span>
+                        {selectedSeatIds.map((id) => {
+                          const seat = realtimeSeats.find(s => s.id === id);
+                          if (!seat) return null;
+                          const price = seat.type === "VIP" ? (currentShowtime?.priceBase || 80000) + 20000 : (currentShowtime?.priceBase || 80000);
+                          return (
+                            <li key={id} className="flex justify-between gap-3">
+                              <span className="text-white font-mono">Ghế {seat.row}{seat.number}</span>
                               <span>
-                                {s.tier} · {formatVND(s.price)}
+                                {seat.type} · {formatVND(price)}
                               </span>
                             </li>
-                          ))}
+                          );
+                        })}
                         {SNACK_ITEMS.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => (
                           <li key={s.id} className="flex justify-between gap-3">
                             <span className="text-white">
@@ -657,16 +649,15 @@ export function StaffPOS() {
                     }}
                   >
                     <div className="text-center border-b-2 border-dashed border-black pb-3 mb-3">
-                      <p style={{ fontWeight: 900, fontSize: "0.95rem", letterSpacing: "0.06em" }}>{BOOKING.theater}</p>
-                      <p style={{ fontSize: "0.65rem", marginTop: 4, opacity: 0.75 }}>{BOOKING.address}</p>
+                      <p style={{ fontWeight: 900, fontSize: "0.95rem", letterSpacing: "0.06em" }}>{currentShowtime?.room?.name}</p>
+                      <p style={{ fontSize: "0.65rem", marginTop: 4, opacity: 0.75 }}>Rạp chiếu phim CINEVERSE</p>
                       <p style={{ fontWeight: 800, fontSize: "0.7rem", marginTop: 8 }}>ADMISSION RECEIPT</p>
                     </div>
-                    <p style={{ fontWeight: 800 }}>{BOOKING.movie}</p>
-                    <p className="opacity-80">{BOOKING.originalTitle}</p>
+                    <p style={{ fontWeight: 800 }}>{currentShowtime?.movie?.title}</p>
+                    <p className="opacity-80">Thời lượng: {currentShowtime?.movie?.duration} phút</p>
                     <div className="my-3 space-y-0.5 border-y border-dashed border-black py-2">
-                      <p>{BOOKING.date}</p>
-                      <p>{BOOKING.time} · {BOOKING.format}</p>
-                      <p>{BOOKING.hall}</p>
+                      <p>{new Date(currentShowtime?.startTime).toLocaleDateString("vi-VN")}</p>
+                      <p>{new Date(currentShowtime?.startTime).toLocaleTimeString("vi-VN")} · 2D</p>
                       <p style={{ marginTop: 6, fontWeight: 800 }}>
                         REF {sale.bookingRef}
                       </p>

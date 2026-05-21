@@ -13,7 +13,7 @@ import {
 /* ═══════════════════════════════════════
    TYPES
 ═══════════════════════════════════════ */
-type MovieStatus = "Showing" | "Coming Soon" | "Ended";
+type MovieStatus = "Showing" | "Coming Soon" | "Ending" | "Ended";
 type MovieRating = "G" | "PG" | "PG-13" | "R";
 type SortDir = "asc" | "desc" | null;
 
@@ -192,7 +192,7 @@ const SEED: Movie[] = [
 const ALL_GENRES  = ["Action","Adventure","Animation","Crime","Drama","Fantasy","Horror","Romance","Sci-Fi","Thriller"];
 const ALL_FORMATS = ["IMAX","4DX","Dolby","3D","2D"];
 const ALL_RATINGS: MovieRating[] = ["G","PG","PG-13","R"];
-const STATUSES: MovieStatus[]    = ["Showing","Coming Soon","Ended"];
+const STATUSES: MovieStatus[]    = ["Showing","Coming Soon","Ending","Ended"];
 
 const STATUS_STYLE: Record<string, { bg: string; border: string; color: string; dot: string }> = {
   "Showing":    { bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.25)", color: "#10b981", dot: "#10b981" },
@@ -1083,7 +1083,7 @@ function DeleteModal({ movie, onConfirm, onClose }: { movie: Movie; onConfirm: (
    MAIN PAGE
 ═══════════════════════════════════════ */
 export function AdminMovies() {
-  const [movies, setMovies]         = useState<Movie[]>(SEED);
+  const [movies, setMovies]         = useState<Movie[]>([]);
   const [search, setSearch]         = useState("");
   const [genreFilter, setGenreFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -1097,6 +1097,41 @@ export function AdminMovies() {
   const [viewTarget, setViewTarget] = useState<Movie | undefined>();
   const [toast, setToast]           = useState("");
   const [toastVisible, setToastVisible] = useState(false);
+
+  // Đồng bộ dữ liệu phim từ Database khi mở trang
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/movies");
+        if (res.ok) {
+          const data = await res.json();
+          // Map dữ liệu từ backend (schema.prisma) sang cấu trúc giao diện Admin
+          const mappedMovies: Movie[] = data.map((m: any) => ({
+            id: m.id,
+            title: m.title,
+            synopsis: m.description || "",
+            genre: ["Action"], // Mặc định do schema DB chưa có Thể Loại
+            director: "Đang cập nhật",
+            cast: "Đang cập nhật",
+            duration: `${Math.floor(m.duration / 60)}h ${m.duration % 60}m`,
+            releaseDate: new Date(m.releaseDate).toISOString().split('T')[0],
+            format: ["2D"],
+            rating: "PG-13",
+            status: m.status === 'NOW_SHOWING' ? 'Showing' : m.status === 'COMING_SOON' ? 'Coming Soon' : 'Ended',
+            trailerUrl: "",
+            poster: m.posterUrl,
+            revenue: 0,
+            tickets: 0,
+            occupancy: 0
+          }));
+          setMovies(mappedMovies);
+        }
+      } catch (err) {
+        console.error("Lỗi tải phim từ backend:", err);
+      }
+    };
+    fetchMovies();
+  }, []);
 
   /* Toast */
   const showToast = (msg: string) => {
@@ -1252,7 +1287,7 @@ export function AdminMovies() {
             style={{ backgroundColor: statusFilter !== "All" ? "rgba(232,25,44,0.08)" : "rgba(255,255,255,0.04)", borderColor: statusFilter !== "All" ? "rgba(232,25,44,0.3)" : "rgba(255,255,255,0.1)", fontSize: "0.82rem", fontWeight: 600, color: statusFilter !== "All" ? "#e8192c" : "rgba(255,255,255,0.55)" }}
           >
             <option value="All" style={{ backgroundColor: "#0f0f18" }}>All Statuses</option>
-            {[...STATUSES, "Ending"].map(s => <option key={s} value={s} style={{ backgroundColor: "#0f0f18" }}>{s}</option>)}
+            {STATUSES.map(s => <option key={s} value={s} style={{ backgroundColor: "#0f0f18" }}>{s}</option>)}
           </select>
           <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none" />
         </div>

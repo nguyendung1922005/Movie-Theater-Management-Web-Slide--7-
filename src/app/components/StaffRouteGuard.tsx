@@ -38,7 +38,8 @@ export function StaffRouteGuard({
       }
 
       // Check if role is allowed for this route
-      if (!allow.includes(role as StaffRole)) {
+      const isSuperUser = role === "STAFF" || role === "ADMIN";
+      if (!allow.includes(role as StaffRole) && !isSuperUser) {
         navigate("/staff/shift", { replace: true });
         return;
       }

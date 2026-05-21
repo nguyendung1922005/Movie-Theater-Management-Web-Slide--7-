@@ -1,44 +1,41 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
-  // Lấy đường dẫn DB từ file .env, nếu không có thì nó tự tạo file dev.db
   url      = env("DATABASE_URL") 
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // Mật khẩu đã được mã hóa
-  role      String   @default("CUSTOMER") // Role: "CUSTOMER", "STAFF", "ADMIN"
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String   
+  role      String    @default("CUSTOMER") 
   name      String?
   phone     String?
   
   bookings  Booking[]
-  shifts    Shift[]  // Dành cho Staff quản lý ca làm
+  shifts    Shift[]  
 }
 
 model Movie {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
   description String?
   posterUrl   String?
   trailerUrl  String?
-  duration    Int      // Tính bằng Phút
+  duration    Int      
   releaseDate DateTime
-  status      String   // Trạng thái: "NOW_SHOWING", "COMING_SOON"
+  status      String   
   
   showtimes   Showtime[]
 }
 
 model Room {
-  id       String   @id @default(uuid())
-  name     String   // Tên phòng chiếu: "Phòng 1", "Phòng IMAX"
-  capacity Int      // Sức chứa
+  id       String     @id @default(uuid())
+  name     String   
+  capacity Int      
   
   seats    Seat[]
   showtimes Showtime[]
@@ -47,36 +44,39 @@ model Room {
 model Seat {
   id       String   @id @default(uuid())
   roomId   String
-  room     Room     @relation(fields: [roomId], references: [id])
-  row      String   // Hàng ghế: "A", "B", "C"...
-  number   Int      // Số ghế: 1, 2, 3...
-  type     String   // Loại ghế: "STANDARD", "VIP", "SWEETBOX"
+  row      String   
+  number   Int      
+  type     String   
   
+  // Xóa Phòng thì tự động bay màu Ghế
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   tickets  Ticket[]
 }
 
 model Showtime {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   movieId   String
   roomId    String
   startTime DateTime
   endTime   DateTime
-  priceBase Float    // Giá vé cơ bản
+  priceBase Float    
   
-  movie     Movie    @relation(fields: [movieId], references: [id])
-  room      Room     @relation(fields: [roomId], references: [id])
+  // Xóa Phim hoặc Phòng thì Suất Chiếu cũng bay màu
+  movie     Movie     @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
   tickets   Ticket[]
 }
 
 model Booking {
-  id            String   @id @default(uuid())
+  id            String         @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  totalAmount   Float    // Tổng tiền thanh toán
-  status        String   // Trạng thái: "PENDING", "COMPLETED", "CANCELLED", "REFUNDED"
-  paymentMethod String   // Cách trả tiền: "MOMO", "VNPAY", "CREDIT_CARD"
-  createdAt     DateTime @default(now())
+  totalAmount   Float    
+  status        String   
+  paymentMethod String   
+  createdAt     DateTime       @default(now())
   
+  // Xóa User thì tự động xóa luôn Lịch sử Booking của người đó
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tickets       Ticket[]
   comboItems    BookingCombo[]
 }
@@ -86,23 +86,23 @@ model Ticket {
   bookingId  String
   showtimeId String
   seatId     String
-  price      Float    // Giá vé thực tế (đã cộng phụ thu VIP nếu có)
-  status     String   // Trạng thái vé: "VALID", "USED", "REFUNDED"
+  price      Float    
+  status     String   
   
-  booking    Booking  @relation(fields: [bookingId], references: [id])
-  showtime   Showtime @relation(fields: [showtimeId], references: [id])
-  seat       Seat     @relation(fields: [seatId], references: [id])
+  // Xóa Hóa Đơn, Suất Chiếu hoặc Ghế thì Vé cũng tự hủy
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  showtime   Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  seat       Seat     @relation(fields: [seatId], references: [id], onDelete: Cascade)
 
-  // Quan trọng: Đảm bảo 1 ghế trong 1 suất chiếu không thể bị mua 2 lần
   @@unique([showtimeId, seatId]) 
 }
 
 model Combo {
-  id       String   @id @default(uuid())
-  name     String   // Tên combo: "Combo 1 Bắp 2 Nước"
+  id       String         @id @default(uuid())
+  name     String   
   price    Float
   image    String?
-  stock    Int      @default(0) // Số lượng tồn kho
+  stock    Int            @default(0) 
   
   bookings BookingCombo[]
 }
@@ -110,30 +110,31 @@ model Combo {
 model BookingCombo {
   bookingId String
   comboId   String
-  quantity  Int      // Số lượng mua
+  quantity  Int      
   
-  booking   Booking @relation(fields: [bookingId], references: [id])
-  combo     Combo   @relation(fields: [comboId], references: [id])
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  combo     Combo   @relation(fields: [comboId], references: [id], onDelete: Cascade)
 
   @@id([bookingId, comboId])
 }
 
 model Shift {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   staffId   String
   startTime DateTime
   endTime   DateTime?
-  cashStart Float    // Tiền lẻ đầu ca
-  cashEnd   Float?   // Tiền mặt chốt ca
-  
-  staff     User     @relation(fields: [staffId], references: [id])
+  cashStart Float    
+  cashEnd   Float?
+
+  staff     User      @relation(fields: [staffId], references: [id], onDelete: Cascade)
 }
+
 model Promotion {
   id        String   @id @default(uuid())
-  title     String   // Tên KM: "Tuesday Special"
-  desc      String   // Mô tả: "Giảm 50% thứ 3..."
-  cta       String   @default("Get Deal") // Chữ trên nút bấm
-  icon      String   @default("Ticket")   // Tên icon: "Ticket", "Gift", "Tag"...
-  color     String   @default("#e8192c")  // Màu sắc của thẻ
-  isActive  Boolean  @default(true)       // Bật/tắt khuyến mãi
+  title     String   
+  desc      String   
+  cta       String   @default("Get Deal") 
+  icon      String   @default("Ticket")   
+  color     String   @default("#e8192c")  
+  isActive  Boolean  @default(true)       
 }

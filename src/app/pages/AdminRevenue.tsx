@@ -10,7 +10,7 @@
  *   5. Recent Transactions table (filterable)
  */
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AdminLayout } from "../components/AdminLayout";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -419,19 +419,194 @@ function DateRangePicker() {
 }
 
 /* ════════════════════════════════════════
+   TOP MOVIE CARD
+════════════════════════════════════════ */
+function TopMovieCard({ m, i }: { m: any; i: number }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        backgroundColor: hov ? C.cardHi : "rgba(255,255,255,0.02)",
+        border: `1px solid ${hov ? m.color + "35" : C.border}`,
+        borderRadius: 14, padding: "14px 16px",
+        cursor: "pointer",
+        transition: "all .18s",
+        boxShadow: hov ? `0 4px 20px ${m.color}18` : "none",
+      }}
+    >
+      {/* Rank badge */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <span style={{
+          width: 24, height: 24, borderRadius: 8,
+          backgroundColor: i === 0 ? "rgba(232,25,44,0.18)" : "rgba(255,255,255,0.05)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "0.62rem", fontWeight: 900,
+          color: i === 0 ? C.red : C.dim,
+          border: `1px solid ${i === 0 ? "rgba(232,25,44,0.3)" : "transparent"}`,
+        }}>#{i + 1}</span>
+        {i === 0 && <Star size={12} fill={C.amber} color={C.amber} />}
+      </div>
+
+      <p style={{
+        fontSize: "0.82rem", fontWeight: 800, color: C.text,
+        marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{m.title}</p>
+      <p style={{ fontSize: "0.68rem", color: C.muted, marginBottom: 10 }}>
+        {m.tickets.toLocaleString()} tickets
+      </p>
+
+      {/* Revenue */}
+      <p style={{
+        fontSize: "1.1rem", fontWeight: 900, color: C.text,
+        letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
+      }}>₫{m.revenue}M</p>
+
+      {/* Progress bar */}
+      <div style={{ marginTop: 10 }}>
+        <div style={{ height: 4, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+          <div style={{ height: "100%", borderRadius: 4, width: `${m.pct}%`, backgroundColor: m.color, boxShadow: hov ? `0 0 6px ${m.color}` : "none", transition: "box-shadow .18s" }} />
+        </div>
+        <p style={{ fontSize: "0.6rem", color: m.color, fontWeight: 700, marginTop: 4 }}>{m.pct}% of total</p>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════
    MAIN PAGE
 ════════════════════════════════════════ */
 export function AdminRevenue() {
   const [txnFilter, setTxnFilter]     = useState<string>("all");
   const [txnSearch, setTxnSearch]     = useState("");
   const [hoveredFormat, setHoveredFormat] = useState<number | null>(null);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/admin/transactions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setBookings(data.bookings);
+        }
+        setLoading(false);
+      })
+      .catch(err => console.error("Lỗi lấy transactions:", err));
+  }, []);
+
+  const { dailyData, formatData, topMovies, recentTxn, totals } = useMemo(() => {
+    if (!bookings.length) return { dailyData: DAILY_DATA, formatData: FORMAT_DATA, topMovies: TOP_MOVIES, recentTxn: TRANSACTIONS, totals: { rev: 850000000, tix: 12450, con: 120000000 } };
+    
+    let tRev = 0;
+    let cRev = 0;
+    let tTix = 0;
+
+    const formatMap: any = {};
+    const movieMap: any = {};
+    const daysMap: any = {};
+    
+    for(let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+      daysMap[key] = {
+        date: key,
+        label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        tickets: 0,
+        concession: 0,
+        total: 0
+      };
+    }
+
+    const txns: any[] = [];
+
+    bookings.forEach(b => {
+      const d = new Date(b.createdAt);
+      const dateKey = `${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")}`;
+      
+      let bTixRev = 0;
+      let bConRev = 0;
+
+      b.tickets.forEach((t: any) => {
+        bTixRev += t.price;
+        tRev += t.price;
+        tTix += 1;
+
+        const format = t.showtime?.room?.name?.includes("IMAX") ? "IMAX" : t.showtime?.room?.name?.includes("Dolby") ? "Dolby" : "2D";
+        if(!formatMap[format]) formatMap[format] = 0;
+        formatMap[format] += t.price;
+
+        const mTitle = t.showtime?.movie?.title || "Unknown";
+        if(!movieMap[mTitle]) movieMap[mTitle] = { tickets: 0, revenue: 0 };
+        movieMap[mTitle].tickets += 1;
+        movieMap[mTitle].revenue += t.price;
+      });
+
+      b.comboItems.forEach((c: any) => {
+        const cPrice = c.combo?.price * c.quantity || 0;
+        bConRev += cPrice;
+        cRev += cPrice;
+      });
+
+      if(daysMap[dateKey]) {
+        daysMap[dateKey].tickets += (bTixRev / 1000000);
+        daysMap[dateKey].concession += (bConRev / 1000000);
+        daysMap[dateKey].total += ((bTixRev + bConRev) / 1000000);
+      }
+
+      txns.push({
+        id: "TXN-" + b.id.substring(0,8).toUpperCase(),
+        ticketId: b.id.substring(0,8).toUpperCase(),
+        customer: b.user?.name || "Guest",
+        av: (b.user?.name || "G").substring(0,2).toUpperCase(),
+        movie: b.tickets[0]?.showtime?.movie?.title || "Combo Only",
+        time: d.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }),
+        amount: b.totalAmount,
+        method: b.paymentMethod === "CREDIT_CARD" ? "Visa" : b.paymentMethod === "E_WALLET" ? "Momo" : "Cash",
+        status: b.status.toLowerCase()
+      });
+    });
+
+    const dailyDataArr = Object.values(daysMap).map((d: any) => ({
+      ...d,
+      tickets: parseFloat(d.tickets.toFixed(2)),
+      concession: parseFloat(d.concession.toFixed(2)),
+      total: parseFloat(d.total.toFixed(2))
+    }));
+
+    const COLORS = [C.red, C.blue, C.orange, C.purple, C.cyan];
+    const formatDataArr = Object.entries(formatMap).map(([name, rev]: any, i) => ({
+      name,
+      revenue: parseFloat((rev / 1000000).toFixed(2)),
+      pct: Math.round((rev / (tRev || 1)) * 100),
+      color: COLORS[i % COLORS.length]
+    })).sort((a,b) => b.revenue - a.revenue);
+
+    const topMoviesArr = Object.entries(movieMap).map(([title, data]: any, i) => ({
+      title,
+      revenue: parseFloat((data.revenue / 1000000).toFixed(2)),
+      tickets: data.tickets,
+      pct: Math.round((data.revenue / (tRev || 1)) * 100),
+      color: COLORS[i % COLORS.length]
+    })).sort((a,b) => b.revenue - a.revenue).slice(0, 5);
+
+    return {
+      dailyData: dailyDataArr,
+      formatData: formatDataArr,
+      topMovies: topMoviesArr,
+      recentTxn: txns,
+      totals: { rev: tRev + cRev, tix: tTix, con: cRev }
+    };
+  }, [bookings]);
 
   // Totals for header KPIs
-  const totalTicketRev   = DAILY_DATA.reduce((s, d) => s + d.tickets,    0);
-  const totalConcession  = DAILY_DATA.reduce((s, d) => s + d.concession, 0);
+  const totalTicketRev   = dailyData.reduce((s, d) => s + d.tickets,    0);
+  const totalConcession  = dailyData.reduce((s, d) => s + d.concession, 0);
 
   // Filtered transactions
-  const visibleTxn = TRANSACTIONS.filter(t => {
+  const visibleTxn = recentTxn.filter(t => {
     if (txnFilter !== "all" && t.status !== txnFilter) return false;
     if (txnSearch) {
       const q = txnSearch.toLowerCase();
@@ -479,8 +654,8 @@ export function AdminRevenue() {
           <KpiCard
             uid="revenue"
             label="Gross Revenue"
-            value="₫850M"
-            sub="30-day total · ₫758M prev."
+            value={`₫${(totals.rev / 1000000).toFixed(1)}M`}
+            sub="30-day total"
             change="+12.2%"
             up
             sparkData={SPARK.revenue}
@@ -493,8 +668,8 @@ export function AdminRevenue() {
           <KpiCard
             uid="tickets"
             label="Tickets Sold"
-            value="12,450"
-            sub="across 5 halls · 208 today"
+            value={totals.tix.toLocaleString("en-US")}
+            sub="across all halls"
             change="+8.3%"
             up
             sparkData={SPARK.tickets}
@@ -507,8 +682,8 @@ export function AdminRevenue() {
           <KpiCard
             uid="concession"
             label="Concession Sales"
-            value="₫120M"
-            sub="Popcorn · Drinks · Combos"
+            value={`₫${(totals.con / 1000000).toFixed(1)}M`}
+            sub="Snacks & Combos"
             change="+5.7%"
             up
             sparkData={SPARK.concession}
@@ -521,8 +696,8 @@ export function AdminRevenue() {
           <KpiCard
             uid="profit"
             label="Net Profit"
-            value="₫284M"
-            sub="Margin 33.4% · EBITDA basis"
+            value={`₫${(totals.rev * 0.3 / 1000000).toFixed(1)}M`}
+            sub="Margin 30.0% · Estimated"
             change="+9.2%"
             up
             sparkData={SPARK.profit}
@@ -545,7 +720,7 @@ export function AdminRevenue() {
           }}>
             <SectionHeader
               title="Daily Revenue"
-              sub="Apr 9 – May 8, 2026 · Ticket revenue + Concession"
+              sub="Last 30 days · Ticket revenue + Concession"
               action={
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   {[
@@ -565,8 +740,8 @@ export function AdminRevenue() {
             <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
               {[
                 { label: "Avg / Day",    value: `₫${Math.round((totalTicketRev + totalConcession) / 30)}M`, color: C.muted },
-                { label: "Peak Day",     value: `₫${Math.max(...DAILY_DATA.map(d => d.total))}M`,            color: C.red   },
-                { label: "Lowest Day",   value: `₫${Math.min(...DAILY_DATA.map(d => d.total))}M`,            color: C.amber },
+                { label: "Peak Day",     value: `₫${Math.max(...dailyData.map(d => d.total))}M`,            color: C.red   },
+                { label: "Lowest Day",   value: `₫${Math.min(...dailyData.map(d => d.total))}M`,            color: C.amber },
               ].map(b => (
                 <div key={b.label} style={{
                   display: "flex", alignItems: "center", gap: 6,
@@ -581,7 +756,7 @@ export function AdminRevenue() {
             </div>
 
             <ResponsiveContainer width="100%" height={230}>
-              <AreaChart data={DAILY_DATA} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+              <AreaChart data={dailyData} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="arRevTickets" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor={C.red}    stopOpacity={0.32} />
@@ -637,14 +812,14 @@ export function AdminRevenue() {
             <ResponsiveContainer width="100%" height={190}>
               <PieChart>
                 <Pie
-                  data={FORMAT_DATA}
+                  data={formatData}
                   cx="50%" cy="50%"
                   innerRadius={58} outerRadius={85}
                   paddingAngle={3} dataKey="pct"
                   onMouseEnter={(_, i) => setHoveredFormat(i)}
                   onMouseLeave={() => setHoveredFormat(null)}
                 >
-                  {FORMAT_DATA.map((entry, i) => (
+                  {formatData.map((entry: any, i: number) => (
                     <Cell
                       key={i}
                       fill={entry.color}
@@ -659,7 +834,7 @@ export function AdminRevenue() {
 
             {/* Legend rows */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-              {FORMAT_DATA.map((d, i) => (
+              {formatData.map((d: any, i: number) => (
                 <div
                   key={d.name}
                   onMouseEnter={() => setHoveredFormat(i)}
@@ -713,69 +888,9 @@ export function AdminRevenue() {
           />
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
-            {TOP_MOVIES.map((m, i) => {
-              const [hov, setHov] = useState(false);
-              return (
-                <div
-                  key={m.title}
-                  onMouseEnter={() => setHov(true)}
-                  onMouseLeave={() => setHov(false)}
-                  style={{
-                    backgroundColor: hov ? C.cardHi : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${hov ? m.color + "35" : C.border}`,
-                    borderRadius: 14, padding: "14px 16px",
-                    cursor: "pointer",
-                    transition: "all .18s",
-                    boxShadow: hov ? `0 4px 20px ${m.color}18` : "none",
-                  }}
-                >
-                  {/* Rank badge */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                    <span style={{
-                      width: 24, height: 24, borderRadius: 8,
-                      backgroundColor: i === 0 ? "rgba(232,25,44,0.18)" : "rgba(255,255,255,0.05)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "0.62rem", fontWeight: 900,
-                      color: i === 0 ? C.red : C.dim,
-                      border: `1px solid ${i === 0 ? "rgba(232,25,44,0.3)" : "transparent"}`,
-                    }}>#{i + 1}</span>
-                    {i === 0 && <Star size={12} fill={C.amber} color={C.amber} />}
-                  </div>
-
-                  <p style={{
-                    fontSize: "0.82rem", fontWeight: 800, color: C.text,
-                    marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>{m.title}</p>
-                  <p style={{ fontSize: "0.68rem", color: C.muted, marginBottom: 10 }}>
-                    {m.tickets.toLocaleString()} tickets
-                  </p>
-
-                  {/* Revenue */}
-                  <p style={{
-                    fontSize: "1.1rem", fontWeight: 900, color: C.text,
-                    letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums",
-                  }}>₫{m.revenue}M</p>
-
-                  {/* Progress bar */}
-                  <div style={{ marginTop: 10 }}>
-                    <div style={{
-                      height: 4, borderRadius: 4,
-                      backgroundColor: "rgba(255,255,255,0.07)",
-                      overflow: "hidden",
-                    }}>
-                      <div style={{
-                        height: "100%", borderRadius: 4,
-                        width: `${m.pct}%`,
-                        backgroundColor: m.color,
-                        boxShadow: hov ? `0 0 6px ${m.color}` : "none",
-                        transition: "box-shadow .18s",
-                      }} />
-                    </div>
-                    <p style={{ fontSize: "0.6rem", color: m.color, fontWeight: 700, marginTop: 4 }}>{m.pct}% of total</p>
-                  </div>
-                </div>
-              );
-            })}
+            {topMovies.map((m: any, i: number) => (
+              <TopMovieCard key={m.title} m={m} i={i} />
+            ))}
           </div>
         </div>
 
@@ -793,7 +908,7 @@ export function AdminRevenue() {
           }}>
             <div>
               <p style={{ fontSize: "0.92rem", fontWeight: 800, color: C.text }}>Recent Transactions</p>
-              <p style={{ fontSize: "0.63rem", color: C.dim }}>High-value bookings · Today, May 8 2026</p>
+              <p style={{ fontSize: "0.63rem", color: C.dim }}>All bookings · Live from DB</p>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -985,7 +1100,7 @@ export function AdminRevenue() {
           }}>
             <span style={{ fontSize: "0.68rem", color: C.dim }}>
               Showing <strong style={{ color: C.text }}>{visibleTxn.length}</strong> of{" "}
-              <strong style={{ color: C.text }}>{TRANSACTIONS.length}</strong> transactions
+              <strong style={{ color: C.text }}>{recentTxn.length}</strong> transactions
             </span>
             <button style={{
               display: "flex", alignItems: "center", gap: 5,

@@ -16,7 +16,7 @@ export function MyTickets() {
       }
 
       try {
-        const res = await fetch("http://localhost:3000/api/user/bookings", {
+        const res = await fetch("http://localhost:3000/api/tickets/me", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
