@@ -565,7 +565,7 @@ export function AdminRevenue() {
         time: d.toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }),
         amount: b.totalAmount,
         method: b.paymentMethod === "CREDIT_CARD" ? "Visa" : b.paymentMethod === "E_WALLET" ? "Momo" : "Cash",
-        status: b.status.toLowerCase()
+        status: b.status === "REFUNDED" || b.status === "CANCELLED" ? "refunded" : b.status.toLowerCase()
       });
     });
 
@@ -600,6 +600,32 @@ export function AdminRevenue() {
       totals: { rev: tRev + cRev, tix: tTix, con: cRev }
     };
   }, [bookings]);
+
+  const handleRefund = async (txnId: string) => {
+    if (!confirm("Xác nhận hoàn tiền cho giao dịch này?")) return;
+    try {
+      // Lấy ID đơn hàng nguyên gốc từ ID giao dịch ảo (TXN-XXXXX)
+      const originalBooking = bookings.find(b => "TXN-" + b.id.substring(0,8).toUpperCase() === txnId);
+      if (!originalBooking) {
+        alert("Không tìm thấy thông tin đơn hàng gốc.");
+        return;
+      }
+
+      const res = await fetch(`http://localhost:3000/api/admin/bookings/${originalBooking.id}/refund`, {
+        method: "POST"
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Hoàn tiền thành công!");
+        setBookings(prev => prev.map(b => b.id === originalBooking.id ? { ...b, status: "REFUNDED" } : b));
+      } else {
+        alert(data.error || "Hoàn tiền thất bại!");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Lỗi khi xử lý hoàn tiền");
+    }
+  };
 
   // Totals for header KPIs
   const totalTicketRev   = dailyData.reduce((s, d) => s + d.tickets,    0);
@@ -1065,27 +1091,32 @@ export function AdminRevenue() {
                   </span>
 
                   {/* Actions */}
-                  <button style={{
-                    width: 28, height: 28, borderRadius: 8,
-                    backgroundColor: "rgba(255,255,255,0.04)",
-                    border: `1px solid ${C.border}`,
-                    color: C.dim, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "all .15s",
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = C.redSoft;
-                    (e.currentTarget as HTMLElement).style.borderColor = "rgba(232,25,44,0.28)";
-                    (e.currentTarget as HTMLElement).style.color = C.red;
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.04)";
-                    (e.currentTarget as HTMLElement).style.borderColor = C.border;
-                    (e.currentTarget as HTMLElement).style.color = C.dim;
-                  }}
-                  >
-                    <MoreHorizontal size={13} />
-                  </button>
+                  {t.status !== "refunded" ? (
+                    <button style={{
+                      padding: "4px 8px", borderRadius: 8,
+                      backgroundColor: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${C.border}`,
+                      color: C.dim, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all .15s",
+                    }}
+                    onClick={() => handleRefund(t.id)}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = C.redSoft;
+                      (e.currentTarget as HTMLElement).style.borderColor = "rgba(232,25,44,0.28)";
+                      (e.currentTarget as HTMLElement).style.color = C.red;
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.backgroundColor = "rgba(255,255,255,0.04)";
+                      (e.currentTarget as HTMLElement).style.borderColor = C.border;
+                      (e.currentTarget as HTMLElement).style.color = C.dim;
+                    }}
+                    >
+                      Refund
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: "0.68rem", color: C.dim }}>—</span>
+                  )}
                 </div>
               );
             })

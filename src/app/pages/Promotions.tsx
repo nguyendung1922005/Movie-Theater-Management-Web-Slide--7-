@@ -256,36 +256,38 @@ const CATEGORIES: { label: Category | "All"; icon: React.ReactNode }[] = [
   { label: "Special Events", icon: <Sparkles size={15} /> },
 ];
 
-/* ─── Copied code badge ──────────────────────────────── */
-function CodeBadge({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(code).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-1.5 px-3 py-1 rounded border border-dashed border-white/20 bg-white/5 hover:border-[#e8192c]/60 hover:bg-[#e8192c]/10 transition-all duration-200 group/code"
-    >
-      <span className="text-white/50 group-hover/code:text-white/80 font-mono transition-colors" style={{ fontSize: "0.7rem", letterSpacing: "0.08em" }}>
-        {code}
-      </span>
-      {copied ? (
-        <CheckCircle size={11} className="text-green-400" />
-      ) : (
-        <Copy size={11} className="text-white/30 group-hover/code:text-white/60 transition-colors" />
-      )}
-    </button>
-  );
-}
-
 /* ─── Promo Card ─────────────────────────────────────── */
 function PromoCard({ promo, onClaim }: { promo: Promo; onClaim: (p: Promo) => void }) {
+  const [claimed, setClaimed] = useState(false);
+
+  useEffect(() => {
+    const checkClaimed = () => {
+      try {
+        const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+        if (claimedList.includes(String(promo.id))) setClaimed(true);
+      } catch(e) {}
+    };
+    checkClaimed();
+    window.addEventListener("voucherClaimed", checkClaimed);
+    return () => window.removeEventListener("voucherClaimed", checkClaimed);
+  }, [promo.id]);
+
+  const handleClaimDirectly = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Ngăn mở Modal nếu bấm vào nút lưu
+    if (claimed) return;
+    try {
+      const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      if (!claimedList.includes(String(promo.id))) {
+        claimedList.push(String(promo.id));
+        localStorage.setItem("claimedVouchers", JSON.stringify(claimedList));
+        window.dispatchEvent(new Event("voucherClaimed"));
+      }
+      setClaimed(true);
+    } catch(e) {}
+  };
+
   return (
-    <div className="group relative bg-[#111118] rounded-2xl overflow-hidden border border-white/6 hover:border-white/15 transition-all duration-400 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col">
+    <div onClick={() => onClaim(promo)} className="group relative bg-[#111118] rounded-2xl overflow-hidden border border-white/6 hover:border-white/15 transition-all duration-400 hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.6)] flex flex-col cursor-pointer">
       {/* Image */}
       <div className="relative h-48 overflow-hidden flex-shrink-0">
         <img
@@ -351,14 +353,6 @@ function PromoCard({ promo, onClaim }: { promo: Promo; onClaim: (p: Promo) => vo
           </span>
         </div>
 
-        {/* Code */}
-        {promo.code && (
-          <div className="flex items-center gap-2">
-            <span className="text-white/30" style={{ fontSize: "0.72rem" }}>Code:</span>
-            <CodeBadge code={promo.code} />
-          </div>
-        )}
-
         {/* Conditions */}
         <div className="flex flex-wrap gap-1.5">
           {promo.conditions.map((c) => (
@@ -374,12 +368,15 @@ function PromoCard({ promo, onClaim }: { promo: Promo; onClaim: (p: Promo) => vo
 
         {/* CTA */}
         <button
-          onClick={() => onClaim(promo)}
-          className="mt-1 w-full py-3 rounded-xl bg-[#e8192c] hover:bg-[#c8111f] active:scale-[0.98] text-white transition-all duration-200 flex items-center justify-center gap-2 group/btn"
-          style={{ fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.1em" }}
+          onClick={handleClaimDirectly}
+          className="mt-1 w-full py-3 rounded-xl active:scale-[0.98] text-white transition-all duration-200 flex items-center justify-center gap-2 group/btn"
+          style={{ 
+            backgroundColor: claimed ? "#10b981" : "#e8192c",
+            fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.1em" 
+          }}
         >
-          <Gift size={15} className="group-hover/btn:scale-110 transition-transform duration-200" />
-          CLAIM OFFER
+          {claimed ? <CheckCircle size={15} /> : <Gift size={15} className="group-hover/btn:scale-110 transition-transform duration-200" />}
+          {claimed ? "ĐÃ LƯU VÀO VÍ" : "LƯU VOUCHER"}
         </button>
       </div>
     </div>
@@ -388,13 +385,25 @@ function PromoCard({ promo, onClaim }: { promo: Promo; onClaim: (p: Promo) => vo
 
 /* ─── Claim Modal ────────────────────────────────────── */
 function ClaimModal({ promo, onClose }: { promo: Promo; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
-  const handleCopy = () => {
-    if (!promo.code) return;
-    navigator.clipboard.writeText(promo.code).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  useEffect(() => {
+    try {
+      const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      if (claimedList.includes(String(promo.id))) setClaimed(true);
+    } catch(e) {}
+  }, [promo.id]);
+
+  const handleClaim = () => {
+    try {
+      const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      if (!claimedList.includes(String(promo.id))) {
+        claimedList.push(String(promo.id));
+        localStorage.setItem("claimedVouchers", JSON.stringify(claimedList));
+        window.dispatchEvent(new Event("voucherClaimed"));
+      }
+      setClaimed(true);
+    } catch(e) {}
   };
 
   useEffect(() => {
@@ -455,26 +464,6 @@ function ClaimModal({ promo, onClose }: { promo: Promo; onClose: () => void }) {
             Valid: {promo.validFrom} – {promo.validTo}
           </div>
 
-          {/* Code */}
-          {promo.code && (
-            <div className="rounded-xl bg-white/5 border border-dashed border-white/15 p-4 flex items-center justify-between">
-              <div>
-                <p className="text-white/30 mb-1" style={{ fontSize: "0.7rem", letterSpacing: "0.1em" }}>PROMO CODE</p>
-                <span className="text-white font-mono" style={{ fontSize: "1.15rem", fontWeight: 700, letterSpacing: "0.12em" }}>
-                  {promo.code}
-                </span>
-              </div>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#e8192c]/15 hover:bg-[#e8192c]/25 border border-[#e8192c]/30 text-[#e8192c] transition-all"
-                style={{ fontSize: "0.75rem", fontWeight: 600 }}
-              >
-                {copied ? <CheckCircle size={14} /> : <Copy size={14} />}
-                {copied ? "Copied!" : "Copy"}
-              </button>
-            </div>
-          )}
-
           {/* Conditions */}
           <div>
             <p className="text-white/30 mb-2 uppercase" style={{ fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.12em" }}>
@@ -491,11 +480,15 @@ function ClaimModal({ promo, onClose }: { promo: Promo; onClose: () => void }) {
           </div>
 
           <button
-            onClick={onClose}
-            className="w-full py-3 rounded-xl bg-[#e8192c] hover:bg-[#c8111f] active:scale-[0.98] text-white transition-all duration-200"
-            style={{ fontSize: "0.85rem", fontWeight: 700, letterSpacing: "0.1em" }}
+            onClick={claimed ? onClose : handleClaim}
+            className="w-full py-3 rounded-xl active:scale-[0.98] text-white transition-all duration-200 flex items-center justify-center gap-2"
+            style={{ 
+              backgroundColor: claimed ? "#10b981" : "#e8192c",
+              fontSize: "0.85rem", fontWeight: 700, letterSpacing: "0.1em" 
+            }}
           >
-            GOT IT, LET'S GO
+            {claimed ? <CheckCircle size={18} /> : <Gift size={18} />}
+            {claimed ? "ĐÃ LƯU VÀO VÍ VOUCHER" : "LƯU VÀO VÍ VOUCHER"}
           </button>
         </div>
       </div>
@@ -505,19 +498,44 @@ function ClaimModal({ promo, onClose }: { promo: Promo; onClose: () => void }) {
 }
 
 /* ─── Hero Carousel ──────────────────────────────────── */
-function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
+function HeroCarousel({ onClaim, slides }: { onClaim: (p: Promo) => void, slides: any[] }) {
   const [current, setCurrent] = useState(0);
   const [animating, setAnimating] = useState(false);
+  const [claimedIds, setClaimedIds] = useState<string[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const checkClaimed = () => {
+      try {
+        const list = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+        setClaimedIds(list);
+      } catch(e) {}
+    };
+    checkClaimed();
+    window.addEventListener("voucherClaimed", checkClaimed);
+    return () => window.removeEventListener("voucherClaimed", checkClaimed);
+  }, []);
+
+  const handleClaimDirectly = (promoId: string) => {
+    if (claimedIds.includes(String(promoId))) return;
+    try {
+      const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      if (!claimedList.includes(String(promoId))) {
+        claimedList.push(String(promoId));
+        localStorage.setItem("claimedVouchers", JSON.stringify(claimedList));
+        window.dispatchEvent(new Event("voucherClaimed"));
+      }
+    } catch(e) {}
+  };
 
   const goTo = useCallback(
     (idx: number) => {
-      if (animating) return;
+      if (animating || slides.length === 0) return;
       setAnimating(true);
-      setCurrent((idx + HERO_SLIDES.length) % HERO_SLIDES.length);
+      setCurrent((idx + slides.length) % slides.length);
       setTimeout(() => setAnimating(false), 500);
     },
-    [animating]
+    [animating, slides]
   );
 
   const next = useCallback(() => goTo(current + 1), [current, goTo]);
@@ -529,12 +547,14 @@ function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [next]);
 
-  const slide = HERO_SLIDES[current];
+  if (!slides || slides.length === 0) return null;
+  
+  const slide = slides[current];
 
   return (
     <div className="relative h-[520px] md:h-[600px] overflow-hidden">
       {/* BG image with transition */}
-      {HERO_SLIDES.map((s, i) => (
+      {slides.map((s, i) => (
         <div
           key={s.id}
           className="absolute inset-0 transition-opacity duration-700"
@@ -576,8 +596,16 @@ function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
           {/* Actions */}
           <div className="flex items-center gap-4 flex-wrap">
             <button
+              onClick={() => handleClaimDirectly(slide.id)}
+              className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-white transition-all duration-200 active:scale-95"
+              style={{ backgroundColor: claimedIds.includes(String(slide.id)) ? "#10b981" : slide.accent, fontSize: "0.9rem", fontWeight: 700, letterSpacing: "0.08em" }}
+            >
+              {claimedIds.includes(String(slide.id)) ? <CheckCircle size={17} /> : <Gift size={17} />}
+              {claimedIds.includes(String(slide.id)) ? "ĐÃ LƯU VÀO VÍ" : "LƯU VOUCHER"}
+            </button>
+            <button
               onClick={() => onClaim({
-                id: `hero-${slide.id}`,
+                id: slide.id,
                 title: slide.title,
                 subtitle: slide.subtitle,
                 description: slide.description,
@@ -591,20 +619,11 @@ function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
                 code: slide.code,
                 conditions: ["Áp dụng tại mọi rạp", "Không cộng dồn khuyến mãi"],
               })}
-              className="flex items-center gap-2 px-7 py-3.5 rounded-xl text-white transition-all duration-200 active:scale-95"
-              style={{ backgroundColor: slide.accent, fontSize: "0.9rem", fontWeight: 700, letterSpacing: "0.08em" }}
+              className="flex items-center gap-2 px-7 py-3.5 rounded-xl border border-white/20 text-white transition-all duration-200 active:scale-95 hover:bg-white/10"
+              style={{ fontSize: "0.9rem", fontWeight: 700, letterSpacing: "0.08em" }}
             >
-              <Gift size={17} />
-              {slide.cta}
+              CHI TIẾT
             </button>
-            {slide.code && (
-              <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/8 border border-white/12 backdrop-blur-sm">
-                <BadgePercent size={15} className="text-white/50" />
-                <span className="text-white/70 font-mono" style={{ fontSize: "0.85rem", letterSpacing: "0.1em" }}>
-                  {slide.code}
-                </span>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -625,7 +644,7 @@ function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
 
       {/* Dots */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
-        {HERO_SLIDES.map((_, i) => (
+        {slides.map((_, i) => (
           <button
             key={i}
             onClick={() => goTo(i)}
@@ -641,7 +660,7 @@ function HeroCarousel({ onClaim }: { onClaim: (p: Promo) => void }) {
 
       {/* Slide counter */}
       <div className="absolute bottom-6 right-6 z-20 text-white/30" style={{ fontSize: "0.75rem", fontWeight: 600 }}>
-        {String(current + 1).padStart(2, "0")} / {String(HERO_SLIDES.length).padStart(2, "0")}
+        {String(current + 1).padStart(2, "0")} / {String(slides.length).padStart(2, "0")}
       </div>
 
       <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }`}</style>
@@ -680,11 +699,65 @@ function StatsBar() {
 export function Promotions() {
   const [activeCategory, setActiveCategory] = useState<Category | "All">("All");
   const [claimTarget, setClaimTarget] = useState<Promo | null>(null);
+  const [promos, setPromos] = useState<Promo[]>([]);
+  const [heroSlides, setHeroSlides] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/promotions")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          const mappedPromos = data.data.map((p: any, i: number) => {
+            const images = [
+              "https://images.unsplash.com/photo-1670737940853-0ce76fc0d54d?w=1080",
+              "https://images.unsplash.com/photo-1732029541807-1eede3bec4f3?w=1080",
+              "https://images.unsplash.com/photo-1608170825938-a8ea0305d46c?w=1080",
+              "https://images.unsplash.com/photo-1700701982617-cdc730361997?w=1080",
+              "https://images.unsplash.com/photo-1771574203200-0ec88f162fe0?w=1080"
+            ];
+            return {
+              id: p.id,
+              title: p.title,
+              subtitle: p.discountType === "PERCENT" ? `Giảm ${p.discountValue}%` : `Giảm ${p.discountValue.toLocaleString("vi-VN")}đ`,
+              description: p.desc,
+              image: images[i % images.length],
+              badge: "OFFER",
+              badgeColor: p.color || "#e8192c",
+              category: "Ticket Deals" as Category,
+              discount: p.discountType === "PERCENT" ? `${p.discountValue}% OFF` : `-${(p.discountValue/1000)}K`,
+              validFrom: "Hôm nay",
+              validTo: "Vô thời hạn",
+              code: p.code,
+              isHot: i < 2,
+              conditions: p.minOrderValue ? [`Đơn từ ${p.minOrderValue.toLocaleString("vi-VN")}đ`] : ["Không yêu cầu đơn tối thiểu"],
+            };
+          });
+          setPromos(mappedPromos);
+          
+          // Cập nhật banner to (Hero) với 3 mã khuyến mãi đầu tiên
+          const newSlides = mappedPromos.slice(0, 3).map((p: Promo) => ({
+            id: p.id,
+            tag: "SPECIAL OFFER",
+            title: p.title,
+            subtitle: p.subtitle,
+            description: p.description,
+            discount: p.discount,
+            cta: "CLAIM NOW",
+            code: p.code,
+            bg: p.image,
+            accent: p.badgeColor,
+            icon: <Gift size={20} />,
+          }));
+          if (newSlides.length > 0) setHeroSlides(newSlides);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const filtered =
     activeCategory === "All"
-      ? PROMOS
-      : PROMOS.filter((p) => p.category === activeCategory);
+      ? promos
+      : promos.filter((p) => p.category === activeCategory);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#0a0a0f" }}>
@@ -692,7 +765,7 @@ export function Promotions() {
 
       {/* Hero */}
       <div className="pt-16">
-        <HeroCarousel onClaim={setClaimTarget} />
+        <HeroCarousel onClaim={setClaimTarget} slides={heroSlides} />
       </div>
 
       {/* Stats */}

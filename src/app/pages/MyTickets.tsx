@@ -3,6 +3,8 @@ import { Header } from "../components/Header";
 import { Footer } from "../components/Footer";
 import { Ticket, Calendar, Clock, MapPin, Film } from "lucide-react";
 
+const API_BASE = (import.meta as any).env.VITE_API_URL || "http://localhost:3000/api";
+
 export function MyTickets() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +18,7 @@ export function MyTickets() {
       }
 
       try {
-        const res = await fetch("http://localhost:3000/api/tickets/me", {
+        const res = await fetch(`${API_BASE}/tickets/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -34,6 +36,28 @@ export function MyTickets() {
 
     fetchMyTickets();
   }, []);
+
+  const handleRefund = async (bookingId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy vé và hoàn tiền? Hành động này không thể hoàn tác.")) return;
+
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE}/bookings/${bookingId}/refund`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        alert("Hủy vé thành công! Tiền sẽ được hoàn về tài khoản của bạn.");
+        setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status: "REFUNDED" } : b));
+      } else {
+        alert(data.error || "Hủy vé thất bại!");
+      }
+    } catch (err) {
+      alert("Lỗi kết nối server!");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -86,7 +110,7 @@ export function MyTickets() {
                       <div>
                         <p className="text-[10px] uppercase font-bold text-white/30 tracking-wider">Ghế Ngồi</p>
                         <p className="text-sm font-bold text-white">
-                          {booking.tickets.map((t: any) => t.seat?.id).join(", ")}
+                          {booking.tickets.map((t: any) => t.seat ? `${t.seat.row}${t.seat.number}` : "Chưa rõ").join(", ")}
                         </p>
                       </div>
                       <div className="text-right">
@@ -96,6 +120,19 @@ export function MyTickets() {
                         </p>
                       </div>
                     </div>
+
+                    {/* Nút Hủy Vé */}
+                    {booking.status === "COMPLETED" ? (
+                      <div className="mt-3">
+                        <button onClick={() => handleRefund(booking.id)} className="w-full py-2.5 rounded-lg border border-[#e8192c]/30 text-[#e8192c] hover:bg-[#e8192c] hover:text-white transition-all text-xs font-bold text-center">
+                          Hủy vé & Hoàn tiền
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-3 w-full py-2.5 rounded-lg bg-white/5 text-white/40 text-xs font-bold text-center uppercase">
+                        {booking.status === "REFUNDED" ? "Đã Hủy & Hoàn Tiền" : booking.status}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

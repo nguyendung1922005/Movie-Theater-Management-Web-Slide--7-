@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Popcorn, Tag, Gift, Ticket, Star, Sparkles, X, CheckCircle, Copy } from "lucide-react";
+import { Popcorn, Tag, Gift, Ticket, Star, Sparkles, CheckCircle, X } from "lucide-react";
 
 // 1. Từ điển dịch chữ từ DB thành Icon thật
 const ICON_MAP: Record<string, any> = {
@@ -23,8 +23,21 @@ interface Promo {
 
 export function PromoBanner() {
   const [promos, setPromos] = useState<Promo[]>([]);
+  const [claimedIds, setClaimedIds] = useState<string[]>([]);
   const [activePromo, setActivePromo] = useState<Promo | null>(null);
-  const [copied, setCopied] = useState(false);
+
+  // Kiểm tra xem voucher nào đã được lưu trong Ví
+  useEffect(() => {
+    const checkClaimed = () => {
+      try {
+        const list = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+        setClaimedIds(list);
+      } catch(e) {}
+    };
+    checkClaimed();
+    window.addEventListener("voucherClaimed", checkClaimed);
+    return () => window.removeEventListener("voucherClaimed", checkClaimed);
+  }, []);
 
   // 2. Gọi món từ Backend
   useEffect(() => {
@@ -44,6 +57,19 @@ export function PromoBanner() {
 
   // Nếu DB chưa có khuyến mãi nào thì ẩn section này đi cho đỡ trống
   if (promos.length === 0) return null;
+
+  // Hàm lưu voucher trực tiếp
+  const handleClaimDirectly = (promoId: string) => {
+    if (claimedIds.includes(String(promoId))) return;
+    try {
+      const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      if (!claimedList.includes(String(promoId))) {
+        claimedList.push(String(promoId));
+        localStorage.setItem("claimedVouchers", JSON.stringify(claimedList));
+        window.dispatchEvent(new Event("voucherClaimed"));
+      }
+    } catch(e) {}
+  };
 
   return (
     <section className="bg-[#0a0a0f] py-16 px-6 border-t border-white/5">
@@ -72,6 +98,7 @@ export function PromoBanner() {
           {promos.map((promo) => {
             // Lấy Icon tương ứng từ từ điển, nếu ghi sai tên thì mặc định lấy Tag
             const IconComponent = ICON_MAP[promo.icon] || Tag;
+            const isClaimed = claimedIds.includes(String(promo.id));
 
             return (
               <div
@@ -100,15 +127,16 @@ export function PromoBanner() {
 
                 <button
                   onClick={() => setActivePromo(promo)}
-                  className="inline-block px-5 py-2 rounded text-white transition-all duration-200 hover:brightness-110 active:scale-95 text-center outline-none"
+                  className="mt-auto w-full py-3 rounded-xl flex items-center justify-center gap-2 text-white transition-all duration-200 active:scale-[0.98] outline-none"
                   style={{
-                    backgroundColor: promo.color,
-                    fontSize: "0.82rem",
+                    backgroundColor: isClaimed ? "#10b981" : promo.color,
+                    fontSize: "0.85rem",
                     fontWeight: 700,
-                    letterSpacing: "0.05em",
+                    letterSpacing: "0.1em",
                   }}
                 >
-                  {promo.cta}
+                  {isClaimed ? <CheckCircle size={16} /> : <Gift size={16} />}
+                  {isClaimed ? "ĐÃ LƯU VÀO VÍ" : "CHI TIẾT VOUCHER"}
                 </button>
               </div>
             );
@@ -116,7 +144,7 @@ export function PromoBanner() {
         </div>
       </div>
 
-      {/* Popup Modal Nhận Mã */}
+      {/* Popup Modal Chi tiết Voucher */}
       {activePromo && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }} onClick={() => setActivePromo(null)}>
           <div onClick={e => e.stopPropagation()} className="relative bg-[#111118] rounded-3xl border border-white/10 w-full max-w-sm overflow-hidden" style={{ animation: "popIn 0.3s cubic-bezier(0.34, 1.4, 0.64, 1)" }}>
@@ -133,25 +161,16 @@ export function PromoBanner() {
               <h2 className="text-white font-bold text-xl mb-2">{activePromo.title}</h2>
               <p className="text-white/60 text-sm mb-6 leading-relaxed">{activePromo.desc}</p>
               
-              <div className="flex items-center justify-between bg-black/40 border border-white/10 rounded-2xl p-4">
-                <div>
-                  <p className="text-white/30 text-xs font-bold tracking-wider mb-1">MÃ KHUYẾN MÃI</p>
-                  <p className="text-white font-mono text-xl font-black tracking-widest">
-                    CINE{String(activePromo.id).substring(0, 4).toUpperCase() || "VIP"}
-                  </p>
-                </div>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(`CINE${String(activePromo.id).substring(0, 4).toUpperCase() || "VIP"}`);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-white font-bold text-xs flex items-center gap-2 transition-all active:scale-95"
-                  style={{ backgroundColor: activePromo.color }}
-                >
-                  {copied ? <CheckCircle size={14} /> : <Copy size={14} />} {copied ? "Đã copy" : "Copy mã"}
-                </button>
-              </div>
+              <button 
+                onClick={() => handleClaimDirectly(activePromo.id)}
+                className="w-full py-3.5 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+                style={{ 
+                  backgroundColor: claimedIds.includes(String(activePromo.id)) ? "#10b981" : activePromo.color 
+                }}
+              >
+                {claimedIds.includes(String(activePromo.id)) ? <CheckCircle size={18} /> : <Gift size={18} />}
+                {claimedIds.includes(String(activePromo.id)) ? "ĐÃ LƯU VÀO VÍ" : "LƯU VOUCHER NÀY"}
+              </button>
             </div>
           </div>
           <style>{`@keyframes popIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }`}</style>

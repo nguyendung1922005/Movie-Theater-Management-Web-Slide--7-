@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { signIn, signUp, resetPassword, signInWithSocial, type AuthUser } from "../../lib/auth";
+import { signIn, signUp, resetPassword, signInWithSocial, signInWithGoogleReal, signInWithFacebookReal } from "../../lib/auth";
+import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
+import FacebookLogin from '@greatsumini/react-facebook-login';
 import {
   Film,
   Mail,
@@ -56,7 +58,7 @@ function FacebookIcon() {
 }
  
 /* ─── Social Button ───────────────────────────────────── */
-function SocialButton({ icon, label, onClick, loading }: { icon: React.ReactNode; label: string; onClick: () => void; loading?: boolean }) {
+function SocialButton({ icon, label, onClick, loading }: { icon: React.ReactNode; label: string; onClick?: () => void; loading?: boolean }) {
   return (
     <button
       type="button"
@@ -146,11 +148,9 @@ function LeftPanel({ mode }: { mode: "login" | "signup" }) {
     return () => clearInterval(interval);
   }, []);
  
-  const features = [
-    mode === "login"
-      ? ["Personalized recommendations", "Exclusive member offers", "Quick rebooking", "Loyalty rewards"]
-      : ["Create personalized watchlists", "Rate & review movies", "Track viewing history", "Join cinema community"],
-  ];
+  const features = mode === "login"
+    ? ["Personalized recommendations", "Exclusive member offers", "Quick rebooking", "Loyalty rewards"]
+    : ["Create personalized watchlists", "Rate & review movies", "Track viewing history", "Join cinema community"];
  
   return (
     <div
@@ -251,13 +251,35 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     }
   };
 
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setSocialLoading("google");
+      const result = await signInWithGoogleReal(tokenResponse.access_token);
+      setSocialLoading(null);
+      if (result.success) {
+        setSuccess(true);
+        setTimeout(() => navigate("/"), 1000);
+      } else {
+        setErrors({ email: result.error || "Google login failed" });
+      }
+    },
+    onError: () => {
+      setErrors({ email: "Google login cancelled or failed" });
+    }
+  });
+
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    if (provider === 'google') {
+      loginWithGoogle();
+      return;
+    }
     setSocialLoading(provider);
     const result = await signInWithSocial(provider);
     setSocialLoading(null);
     
-    if (!result.success) {
-      // Error is already handled by signInWithSocial with toast
+    if (result.success) {
+      setSuccess(true);
+      setTimeout(() => navigate("/"), 1000);
     }
   };
  
@@ -410,11 +432,27 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
           onClick={() => handleSocialLogin('google')}
           loading={socialLoading === 'google'}
         />
-        <SocialButton 
-          icon={<FacebookIcon />} 
-          label="Facebook" 
-          onClick={() => handleSocialLogin('facebook')}
-          loading={socialLoading === 'facebook'}
+        <FacebookLogin
+          appId={(import.meta as any).env.VITE_FACEBOOK_APP_ID || "YOUR_FACEBOOK_APP_ID"}
+          scope="public_profile,email"
+          onSuccess={async (response) => {
+            setSocialLoading("facebook");
+            const result = await signInWithFacebookReal(response.accessToken);
+            setSocialLoading(null);
+            if (result.success) {
+              setSuccess(true);
+              setTimeout(() => navigate("/"), 1000);
+            }
+          }}
+          onFail={(error) => setErrors({ email: "Facebook login cancelled or failed" })}
+          render={({ onClick }) => (
+            <SocialButton 
+              icon={<FacebookIcon />} 
+              label="Facebook" 
+              onClick={onClick}
+              loading={socialLoading === 'facebook'}
+            />
+          )}
         />
       </div>
  
@@ -446,13 +484,35 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
  
   const strength = getStrength(password);
  
+  const loginWithGoogle = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setSocialLoading("google");
+      const result = await signInWithGoogleReal(tokenResponse.access_token);
+      setSocialLoading(null);
+      if (result.success) {
+        setSuccess(true);
+        setTimeout(() => navigate("/"), 1000);
+      } else {
+        setErrors({ email: result.error || "Google sign up failed" });
+      }
+    },
+    onError: () => {
+      setErrors({ email: "Google sign up cancelled or failed" });
+    }
+  });
+
   const handleSocialLogin = async (provider: 'google' | 'facebook') => {
+    if (provider === 'google') {
+      loginWithGoogle();
+      return;
+    }
     setSocialLoading(provider);
     const result = await signInWithSocial(provider);
     setSocialLoading(null);
     
-    if (!result.success) {
-      // Error is already handled by signInWithSocial with toast
+    if (result.success) {
+      setSuccess(true);
+      setTimeout(() => navigate("/"), 1000);
     }
   };
  
@@ -644,11 +704,27 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           onClick={() => handleSocialLogin('google')}
           loading={socialLoading === 'google'}
         />
-        <SocialButton 
-          icon={<FacebookIcon />} 
-          label="Facebook" 
-          onClick={() => handleSocialLogin('facebook')}
-          loading={socialLoading === 'facebook'}
+        <FacebookLogin
+          appId={(import.meta as any).env.VITE_FACEBOOK_APP_ID || "YOUR_FACEBOOK_APP_ID"}
+          scope="public_profile,email"
+          onSuccess={async (response) => {
+            setSocialLoading("facebook");
+            const result = await signInWithFacebookReal(response.accessToken);
+            setSocialLoading(null);
+            if (result.success) {
+              setSuccess(true);
+              setTimeout(() => navigate("/"), 1000);
+            }
+          }}
+          onFail={(error) => setErrors({ email: "Facebook sign up cancelled or failed" })}
+          render={({ onClick }) => (
+            <SocialButton 
+              icon={<FacebookIcon />} 
+              label="Facebook" 
+              onClick={onClick}
+              loading={socialLoading === 'facebook'}
+            />
+          )}
         />
       </div>
  
@@ -766,22 +842,24 @@ export function Auth() {
   const [mode, setMode] = useState<"login" | "signup">(initial);
  
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: "#0a0a0f" }}>
-      <LeftPanel mode={mode} />
-      <RightPanel mode={mode} onSwitch={() => setMode((m) => (m === "login" ? "signup" : "login"))} />
+    <GoogleOAuthProvider clientId={(import.meta as any).env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"}>
+      <div className="min-h-screen flex" style={{ backgroundColor: "#0a0a0f" }}>
+        <LeftPanel mode={mode} />
+        <RightPanel mode={mode} onSwitch={() => setMode((m) => (m === "login" ? "signup" : "login"))} />
  
-      <style>{`
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes shimmer {
-          0%   { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-        .duration-1500 { transition-duration: 1500ms; }
-        .duration-250  { transition-duration: 250ms; }
-      `}</style>
-    </div>
+        <style>{`
+          @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes shimmer {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+          }
+          .duration-1500 { transition-duration: 1500ms; }
+          .duration-250  { transition-duration: 250ms; }
+        `}</style>
+      </div>
+    </GoogleOAuthProvider>
   );
 }

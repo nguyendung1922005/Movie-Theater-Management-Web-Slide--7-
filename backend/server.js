@@ -52,6 +52,118 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Đăng nhập bằng Google (Sử dụng Token thật từ Google)
+app.post('/api/auth/google', async (req, res) => {
+  // Hỗ trợ nhận nhiều key khác nhau từ Frontend
+  const token = req.body.token || req.body.credential || req.body.access_token;
+  
+  if (!token) {
+    return res.status(400).json({ error: "Thiếu token đăng nhập từ Google" });
+  }
+
+  try {
+    let email, name;
+    
+    // Kiểm tra xem token là ID Token (chuỗi JWT có 3 phần) hay Access Token
+    if (token.split('.').length === 3) {
+      // Giải mã Google JWT Token (Credential)
+      const decoded = jwt.decode(token);
+      if (!decoded || !decoded.email) {
+        return res.status(400).json({ error: "Token Google không hợp lệ" });
+      }
+      email = decoded.email;
+      name = decoded.name;
+    } else {
+      // Lấy thông tin từ Google API bằng Access Token
+      const googleRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (!googleRes.ok) return res.status(400).json({ error: "Access Token Google không hợp lệ hoặc đã hết hạn" });
+
+      const userInfo = await googleRes.json();
+      if (!userInfo || !userInfo.email) return res.status(400).json({ error: "Không thể lấy email từ Google" });
+      
+      email = userInfo.email;
+      name = userInfo.name;
+    }
+
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    // Nếu chưa có tài khoản, tự động tạo mới
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-10);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      user = await prisma.user.create({
+        data: { email, password: hashedPassword, name: name || email.split('@')[0], role: 'CUSTOMER' }
+      });
+    }
+    
+    const systemToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token: systemToken, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+  } catch (error) {
+    console.error("Google Auth Error:", error);
+    res.status(500).json({ error: "Lỗi server khi đăng nhập bằng Google" });
+  }
+});
+
+// Đăng nhập bằng Facebook (Sử dụng Access Token từ Facebook)
+app.post('/api/auth/facebook', async (req, res) => {
+  const { accessToken } = req.body;
+  if (!accessToken) return res.status(400).json({ error: "Thiếu token đăng nhập từ Facebook" });
+
+  try {
+    // Gọi Graph API của Facebook để lấy thông tin (id, name, email)
+    const fbRes = await fetch(`https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email`);
+    const fbUser = await fbRes.json();
+
+    if (fbUser.error || !fbUser.email) {
+      return res.status(400).json({ error: "Token Facebook không hợp lệ hoặc tài khoản Facebook chưa liên kết email" });
+    }
+
+    const { email, name } = fbUser;
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-10);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      user = await prisma.user.create({
+        data: { email, password: hashedPassword, name: name || email.split('@')[0], role: 'CUSTOMER' }
+      });
+    }
+    
+    const systemToken = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token: systemToken, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+  } catch (error) {
+    console.error("Facebook Auth Error:", error);
+    res.status(500).json({ error: "Lỗi server khi đăng nhập bằng Facebook" });
+  }
+});
+
+// Đăng nhập bằng MXH (Google / Facebook)
+app.post('/api/auth/social', async (req, res) => {
+  const { provider, email, name } = req.body;
+  try {
+    let user = await prisma.user.findUnique({ where: { email } });
+    
+    // Nếu user chưa tồn tại, tự động tạo mới
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-10); // Mật khẩu ngẫu nhiên
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      
+      user = await prisma.user.create({
+        data: { email, password: hashedPassword, name: name || email.split('@')[0], role: 'CUSTOMER' }
+      });
+    }
+    
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, phone: user.phone, role: user.role } });
+  } catch (error) {
+    console.error("Lỗi đăng nhập MXH:", error);
+    res.status(500).json({ error: `Lỗi server khi đăng nhập bằng ${provider}` });
+  }
+});
+
 // Cập nhật thông tin cá nhân (Profile)
 app.put('/api/users/me', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -171,6 +283,42 @@ app.get('/api/promotions', async (req, res) => {
   }
 });
 
+// ==========================================
+// THÊM CRUD CHO KHUYẾN MÃI (DÀNH CHO ADMIN)
+// ==========================================
+app.post('/api/admin/promotions', async (req, res) => {
+  try {
+    const promo = await prisma.promotion.create({ data: req.body });
+    res.json({ success: true, data: promo });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Lỗi thêm khuyến mãi" });
+  }
+});
+
+app.put('/api/admin/promotions/:id', async (req, res) => {
+  try {
+    const promo = await prisma.promotion.update({
+      where: { id: req.params.id },
+      data: req.body
+    });
+    res.json({ success: true, data: promo });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Lỗi cập nhật khuyến mãi" });
+  }
+});
+
+app.delete('/api/admin/promotions/:id', async (req, res) => {
+  try {
+    await prisma.promotion.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, error: "Lỗi xóa khuyến mãi" });
+  }
+});
+
 // Lấy danh sách ghế của một suất chiếu (Kèm trạng thái đã đặt hay chưa)
 app.get('/api/showtimes/:id/seats', async (req, res) => {
   try {
@@ -250,9 +398,15 @@ app.post('/api/bookings', async (req, res) => {
   }
 
   try {
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const userId = decoded.id; 
+    let userId;
+    try {
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+    } catch (err) {
+      // Bắt lỗi Token hết hạn hoặc không hợp lệ -> Trả về 401 để Frontend đá về trang Login
+      return res.status(401).json({ success: false, error: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!" });
+    }
 
     // Kiểm tra xem User có còn tồn tại trong DB không (tránh lỗi do chạy seed.js reset DB)
     const userExists = await prisma.user.findUnique({ where: { id: userId } });
@@ -291,7 +445,50 @@ app.post('/api/bookings', async (req, res) => {
     res.json({ success: true, message: "Đặt vé thành công!", bookingId: booking.id });
   } catch (error) {
     console.error(error);
+    // Bắt lỗi P2002 của Prisma: Vi phạm ràng buộc duy nhất (Ghế này của suất chiếu này đã có trong 1 Ticket khác)
+    if (error.code === 'P2002') {
+      return res.status(400).json({ success: false, error: "Ghế bạn chọn đã có người nhanh tay đặt mất rồi. Vui lòng quay lại chọn ghế khác!" });
+    }
     res.status(500).json({ success: false, error: "Thanh toán thất bại, vui lòng thử lại!" });
+  }
+});
+
+// Hủy vé bởi Khách hàng (Refund)
+app.post('/api/bookings/:id/refund', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ success: false, error: "Vui lòng đăng nhập!" });
+
+  try {
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const userId = decoded.id;
+    const { id } = req.params;
+
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: { tickets: true }
+    });
+
+    if (!booking) return res.status(404).json({ success: false, error: "Không tìm thấy đơn hàng" });
+    if (booking.userId !== userId) return res.status(403).json({ success: false, error: "Bạn không có quyền hủy đơn hàng này" });
+    if (booking.status === 'REFUNDED' || booking.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, error: "Đơn hàng đã được hủy trước đó" });
+    }
+
+    await prisma.booking.update({
+      where: { id },
+      data: { status: 'REFUNDED' }
+    });
+
+    // Giải phóng ghế: Chuyển các vé của đơn hàng này sang trạng thái CANCELLED
+    await prisma.ticket.updateMany({
+      where: { bookingId: id },
+      data: { status: 'CANCELLED' }
+    });
+
+    res.json({ success: true, message: "Hủy vé và hoàn tiền thành công!" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Lỗi server khi hủy vé" });
   }
 });
 
@@ -317,26 +514,38 @@ app.post('/api/staff/tickets/:id/scan', async (req, res) => {
       return res.status(403).json({ success: false, error: "Bạn không có quyền thực hiện thao tác này!" });
     }
 
-    // Tìm vé trong hệ thống
-    const ticket = await prisma.ticket.findUnique({
-      where: { id },
+    // Hỗ trợ cả full UUID và chuỗi 8 ký tự rút gọn (Booking Ref trên QR code)
+    const booking = await prisma.booking.findFirst({
+      where: { id: { startsWith: id.toLowerCase() } },
       include: {
-        showtime: { include: { movie: true, room: true } },
-        seat: true
+        tickets: { include: { showtime: { include: { movie: true, room: true } }, seat: true } }
       }
     });
 
-    if (!ticket) return res.status(404).json({ success: false, error: "Mã vé không tồn tại trong hệ thống!" });
-    if (ticket.status === 'USED') return res.status(400).json({ success: false, error: "Tít tít! Vé này ĐÃ ĐƯỢC SỬ DỤNG trước đó!" });
-    if (ticket.status !== 'VALID') return res.status(400).json({ success: false, error: "Vé không hợp lệ!" });
+    if (!booking) return res.status(404).json({ success: false, error: "Mã hóa đơn không tồn tại trong hệ thống!" });
+
+    const validTickets = booking.tickets.filter(t => t.status === 'VALID');
+    const usedTickets = booking.tickets.filter(t => t.status === 'USED');
+
+    if (validTickets.length === 0) {
+       if (usedTickets.length > 0) return res.status(400).json({ success: false, error: "Tít tít! Vé của hóa đơn này ĐÃ ĐƯỢC SỬ DỤNG trước đó!" });
+       return res.status(400).json({ success: false, error: "Hóa đơn này không có vé hợp lệ (có thể đã bị hủy)!" });
+    }
 
     // Cập nhật trạng thái thành USED
-    const updatedTicket = await prisma.ticket.update({
-      where: { id },
+    await prisma.ticket.updateMany({
+      where: { bookingId: booking.id },
       data: { status: 'USED' }
     });
 
-    res.json({ success: true, message: "Quét vé thành công! Mời khách vào.", data: ticket });
+    const showtime = validTickets[0].showtime;
+    const seats = validTickets.map(t => `${t.seat.row}${t.seat.number}`);
+
+    res.json({ success: true, message: "Quét vé thành công! Mời khách vào.", data: {
+      movieTitle: showtime.movie.title,
+      roomName: showtime.room.name,
+      seats: seats
+    }});
   } catch (error) {
     console.error("Lỗi quét vé:", error);
     res.status(500).json({ success: false, error: "Lỗi server khi quét vé!" });
@@ -403,6 +612,22 @@ app.post('/api/staff/shift/clock-out', async (req, res) => {
 // 4. API DÀNH CHO ADMIN
 // ==========================================
 
+// Lấy danh sách Người dùng
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        _count: {
+          select: { bookings: true }
+        }
+      }
+    });
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Lỗi server!" });
+  }
+});
+
 // Lấy thống kê doanh thu theo tháng
 app.get('/api/admin/revenue', async (req, res) => {
   try {
@@ -467,6 +692,37 @@ app.get('/api/admin/transactions', async (req, res) => {
     res.json({ success: true, bookings });
   } catch (error) {
     res.status(500).json({ success: false, error: "Lỗi server!" });
+  }
+});
+
+// Hủy vé và Hoàn tiền (Refund)
+app.post('/api/admin/bookings/:id/refund', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const booking = await prisma.booking.findUnique({
+      where: { id },
+      include: { tickets: true }
+    });
+    
+    if (!booking) return res.status(404).json({ success: false, error: "Không tìm thấy đơn hàng" });
+    if (booking.status === 'REFUNDED' || booking.status === 'CANCELLED') {
+      return res.status(400).json({ success: false, error: "Đơn hàng đã được hoàn tiền hoặc hủy" });
+    }
+
+    await prisma.booking.update({
+      where: { id },
+      data: { status: 'REFUNDED' }
+    });
+
+    // Giải phóng ghế
+    await prisma.ticket.updateMany({
+      where: { bookingId: id },
+      data: { status: 'CANCELLED' }
+    });
+
+    res.json({ success: true, message: "Hoàn tiền thành công!" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Lỗi server khi hoàn tiền" });
   }
 });
 

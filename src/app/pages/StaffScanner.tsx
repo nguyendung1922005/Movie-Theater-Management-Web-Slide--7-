@@ -36,38 +36,47 @@ export function StaffScanner() {
   async function lookupBooking(code: string) {
     const trimmed = code.trim();
     const parsed = parseCinemaQrPayload(trimmed);
-    const n = normRef(parsed?.bookingRef ?? trimmed);
-    if (!n) {
+    const bookingId = parsed?.bookingRef ?? trimmed;
+    if (!bookingId) {
       setResult(undefined);
-      toast.error("Enter a booking reference or scan payload");
+      toast.error("Vui lòng nhập mã hóa đơn hợp lệ!");
       return;
     }
     
     try {
       setLoading(true);
-      const posList = await loadPosIssuedTickets();
-      setPosTickets(posList);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`http://localhost:3000/api/staff/tickets/${bookingId}/scan`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
       
-      const hitCatalog =
-        TICKETS.find((t) => normRef(t.bookingRef).includes(n) || n.includes(normRef(t.bookingRef))) ??
-        TICKETS.find((t) => t.seats.some((s) => n.includes(normRef(s)))) ??
-        TICKETS.find((t) => n.includes(normRef(t.id)));
-      if (hitCatalog) {
-        setResult(hitCatalog);
-        toast.success("Ticket verified");
-        return;
+      if (data.success) {
+        toast.success(data.message);
+        setResult({
+          id: bookingId,
+          bookingRef: bookingId.substring(0, 8).toUpperCase(),
+          movie: data.data.movieTitle,
+          shortDate: "Hôm nay",
+          time: "Bây giờ",
+          hall: data.data.roomName,
+          seats: data.data.seats,
+          rating: 5,
+          status: "past",
+          price: 0,
+          cinema: "CGV Vincom",
+          accentColor: "#10b981",
+          poster: "https://via.placeholder.com/300x450"
+        } as unknown as TicketRecord);
+      } else {
+        toast.error(data.error);
+        setResult(null);
       }
-      
-      const hitPos =
-        posList.find((t) => normRef(t.bookingRef) === n) ??
-        posList.find((t) => normRef(t.bookingRef).includes(n) || n.includes(normRef(t.bookingRef)));
-      const hit = hitPos ?? null;
-      setResult(hit);
-      if (hit) toast.success("Ticket verified");
-      else toast.error("No matching ticket");
     } catch (error) {
       console.error('Error looking up booking:', error);
-      toast.error("Failed to lookup ticket");
+      toast.error("Lỗi kết nối máy chủ");
+      setResult(null);
     } finally {
       setLoading(false);
     }

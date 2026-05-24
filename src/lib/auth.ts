@@ -5,7 +5,7 @@
 
 import { toast } from 'sonner';
 
-const API_URL = 'http://localhost:3000/api/auth';
+const API_URL = `${(import.meta as any).env.VITE_API_URL || 'http://localhost:3000/api'}/auth`;
 
 export interface AuthUser {
   id: string;
@@ -136,11 +136,103 @@ export async function resetPassword(email: string): Promise<{ success: boolean; 
 }
 
 /**
+ * Sign in with Real Google Credential (JWT)
+ */
+export async function signInWithGoogleReal(credential: string): Promise<AuthResponse> {
+  try {
+    const res = await fetch(`${API_URL}/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+
+    const json = await res.json();
+
+    if (res.ok && json.token) {
+      localStorage.setItem("token", json.token);
+      localStorage.setItem("user", JSON.stringify(json.user));
+      toast.success('Đăng nhập Google thành công!', { description: `Xin chào, ${json.user.name}!` });
+      return { success: true, user: json.user };
+    } else {
+      const errorMessage = json.error || 'Lỗi đăng nhập Google';
+      toast.error('Đăng nhập thất bại', { description: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+    toast.error('Lỗi kết nối', { description: 'Không thể kết nối đến server backend.' });
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Sign in with Real Facebook Access Token
+ */
+export async function signInWithFacebookReal(accessToken: string): Promise<AuthResponse> {
+  try {
+    const res = await fetch(`${API_URL}/facebook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken }),
+    });
+
+    const json = await res.json();
+
+    if (res.ok && json.token) {
+      localStorage.setItem("token", json.token);
+      localStorage.setItem("user", JSON.stringify(json.user));
+      toast.success('Đăng nhập Facebook thành công!', { description: `Xin chào, ${json.user.name}!` });
+      return { success: true, user: json.user };
+    } else {
+      const errorMessage = json.error || 'Lỗi đăng nhập Facebook';
+      toast.error('Đăng nhập thất bại', { description: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+    toast.error('Lỗi kết nối', { description: 'Không thể kết nối đến server backend.' });
+    return { success: false, error: errorMessage };
+  }
+}
+
+/**
  * Sign in with social provider (Google or Facebook)
  */
-export async function signInWithSocial(provider: 'google' | 'facebook'): Promise<{ success: boolean; error?: string }> {
-  toast.error('Tính năng chưa hỗ trợ', { description: 'Backend hiện tại chưa hỗ trợ đăng nhập qua mạng xã hội.' });
-  return { success: false, error: "Not implemented in custom backend" };
+export async function signInWithSocial(provider: 'google' | 'facebook'): Promise<AuthResponse> {
+  try {
+    // ⚠️ LƯU Ý: Đây là hộp thoại giả lập (Mock) để demo luồng đăng nhập MXH.
+    // Trong thực tế, bạn sẽ dùng thư viện (vd: @react-oauth/google) để lấy token thực tế.
+    const email = window.prompt(`[MÔ PHỎNG ĐĂNG NHẬP ${provider.toUpperCase()}]\nVui lòng nhập email của bạn:`, `user_${provider}@gmail.com`);
+    
+    if (!email) {
+      return { success: false, error: "Đã hủy đăng nhập" };
+    }
+
+    const name = email.split('@')[0];
+
+    const res = await fetch(`${API_URL}/social`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider, email, name }),
+    });
+
+    const json = await res.json();
+
+    if (res.ok && json.token) {
+      localStorage.setItem("token", json.token);
+      localStorage.setItem("user", JSON.stringify(json.user));
+      toast.success(`Đăng nhập ${provider} thành công!`, { description: `Xin chào, ${json.user.name}!` });
+      return { success: true, user: json.user };
+    } else {
+      const errorMessage = json.error || `Lỗi đăng nhập ${provider}`;
+      toast.error('Đăng nhập thất bại', { description: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+    toast.error('Lỗi kết nối', { description: 'Không thể kết nối đến server backend.' });
+    return { success: false, error: errorMessage };
+  }
 }
 
 /**

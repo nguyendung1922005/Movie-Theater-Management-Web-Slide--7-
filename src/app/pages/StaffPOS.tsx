@@ -9,7 +9,6 @@ import { Toaster, toast } from "sonner";
 import { StaffPage, SC } from "../components/StaffLayout";
 import { StaffRouteGuard } from "../components/StaffRouteGuard";
 import { BOOKING } from "../lib/bookingData";
-import { SNACK_ITEMS } from "../lib/commerceData";
 import {
   TICKETS,
   appendPosIssuedTicket,
@@ -68,6 +67,7 @@ export function StaffPOS() {
   const [currentShowtime, setCurrentShowtime] = useState<any>(null);
   const [realtimeSeats, setRealtimeSeats] = useState<any[]>([]);
   const [loadingSeats, setLoadingSeats] = useState(true);
+  const [snackItems, setSnackItems] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchRealData = async () => {
@@ -82,6 +82,13 @@ export function StaffPOS() {
           const seatData = await seatRes.json();
           if (seatData.success) {
             setRealtimeSeats(seatData.seats);
+          }
+
+          const comboRes = await fetch("http://localhost:3000/api/combos");
+          if (comboRes.ok) {
+            const comboData = await comboRes.json();
+            const mappedCombos = comboData.map((c: any) => ({ ...c, emoji: c.name.toLowerCase().includes("bắp") ? "🍿" : "🥤" }));
+            setSnackItems(mappedCombos);
           }
         }
       } catch (err) {
@@ -119,8 +126,8 @@ export function StaffPOS() {
   );
 
   const snackTotal = useMemo(
-    () => SNACK_ITEMS.reduce((acc, s) => acc + s.price * (snackQty[s.id] ?? 0), 0),
-    [snackQty],
+    () => snackItems.reduce((acc, s) => acc + s.price * (snackQty[s.id] ?? 0), 0),
+    [snackQty, snackItems],
   );
 
   const grand = seatTotal + snackTotal;
@@ -165,7 +172,7 @@ export function StaffPOS() {
       return { id: `${seat.row}${seat.number}`, tier: seat.type, price };
     });
     
-    const snackLines = SNACK_ITEMS.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => ({
+    const snackLines = snackItems.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => ({
       name: s.name,
       qty: snackQty[s.id] ?? 0,
       unit: s.price,
@@ -376,7 +383,7 @@ export function StaffPOS() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {SNACK_ITEMS.map((s) => {
+              {snackItems.map((s) => {
                 const q = snackQty[s.id] ?? 0;
                 return (
                   <div
@@ -399,9 +406,6 @@ export function StaffPOS() {
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-white font-bold truncate">{s.name}</p>
-                      <p className="text-white/40" style={{ fontSize: "0.72rem" }}>
-                        {s.size}
-                      </p>
                       <p style={{ fontSize: "0.8rem", color: SC.red, fontWeight: 800, marginTop: 4 }}>
                         {formatVND(s.price)}
                       </p>
@@ -516,7 +520,7 @@ export function StaffPOS() {
                             </li>
                           );
                         })}
-                        {SNACK_ITEMS.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => (
+                        {snackItems.filter((s) => (snackQty[s.id] ?? 0) > 0).map((s) => (
                           <li key={s.id} className="flex justify-between gap-3">
                             <span className="text-white">
                               {s.emoji} {s.name} ×{snackQty[s.id]}

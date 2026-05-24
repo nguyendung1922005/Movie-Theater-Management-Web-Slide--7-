@@ -5,7 +5,7 @@
  * and "Add New Combo" modal form.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus, X, Check, Edit2, Trash2, Search,
   ChevronDown, Loader2, Package, DollarSign,

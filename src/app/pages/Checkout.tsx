@@ -2,8 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom"; 
 import {
   ChevronLeft, Check, Clock, Calendar, Crown,
-  Plus, Minus, Film, Ticket, ChevronDown, ArrowRight,
+  Plus, Minus, Film, Ticket, ChevronDown, ArrowRight, X, QrCode
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+
+const API_BASE = (import.meta as any).env.VITE_API_URL || "http://localhost:3000/api";
 
 const CONVENIENCE_FEE = 15000;
 const TAX_RATE = 0.10;
@@ -144,9 +147,10 @@ function CostBreakdown({ snackCart, orderData, snackItems, discount }: { snackCa
 // ─── ĐÃ SỬA: NÚT THANH TOÁN BẮN API THẬT XUỐNG DB ───
 function ConfirmButton({ total, orderData, snackCart }: { total: number; orderData: OrderData; snackCart: Record<string, number> }) {
   const [state, setState] = useState<"idle" | "processing" | "done">("idle");
+  const [showQR, setShowQR] = useState(false);
   const navigate = useNavigate();
 
-  const handleClick = async () => {
+  const handlePrePay = () => {
     if (state !== "idle") return;
 
     // Chặn lỗi do người dùng F5 trang làm mất dữ liệu giỏ hàng
@@ -164,6 +168,11 @@ function ConfirmButton({ total, orderData, snackCart }: { total: number; orderDa
       return;
     }
 
+    setShowQR(true);
+  };
+
+  const executePayment = async () => {
+    setShowQR(false);
     setState("processing");
 
     try {
@@ -174,11 +183,12 @@ function ConfirmButton({ total, orderData, snackCart }: { total: number; orderDa
         showtimeId: orderData.showtime.id,
         seats: orderData.seats.map(s => ({ id: s.id, price: s.price })),
         comboItems,
-        paymentMethod: "CREDIT_CARD",
+        paymentMethod: "E_WALLET",
         totalAmount: total
       };
 
-      const res = await fetch("http://localhost:3000/api/bookings", {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/bookings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -191,6 +201,10 @@ function ConfirmButton({ total, orderData, snackCart }: { total: number; orderDa
 
       if (res.ok && json.success) {
         setState("done");
+        // Tự động nhảy sang trang confirm sau 1 giây
+        setTimeout(() => {
+          navigate("/booking-confirmed");
+        }, 1000);
       } else {
         alert(json.error || "Lỗi khi thanh toán!");
         setState("idle");
@@ -208,48 +222,131 @@ function ConfirmButton({ total, orderData, snackCart }: { total: number; orderDa
     }
   };
 
+  // ─────────────────────────────────────────────────────────
+  // THÔNG TIN TÀI KHOẢN NGÂN HÀNG CỦA BẠN (Sửa lại cho đúng)
+  // ─────────────────────────────────────────────────────────
+  const BANK_ID = "MB"; // Mã ngân hàng (VD: MB, VCB, TCB, VPB, ACB...)
+  const ACCOUNT_NO = "0000382807745"; // Số tài khoản của bạn
+  const ACCOUNT_NAME = "NGUYEN TIEN DUNG"; // Tên chủ tài khoản (Viết hoa, không dấu)
+  const DESCRIPTION = `Thanh toan ve xem phim`; 
+  const qrUrl = `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-compact2.png?amount=${total}&addInfo=${encodeURIComponent(DESCRIPTION)}&accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+
   return (
     <div className="flex flex-col gap-3">
-      <button onClick={handleClick} disabled={state === "done"} className="relative w-full py-4 rounded-2xl transition-all duration-300" style={{ backgroundColor: state === "done" ? "#16a34a" : "#e8192c" }}>
+      <button onClick={handlePrePay} disabled={state === "done"} className="relative w-full py-4 rounded-2xl transition-all duration-300" style={{ backgroundColor: state === "done" ? "#16a34a" : "#e8192c" }}>
         <div className="relative flex items-center justify-center gap-3">
           {state === "idle" && <><span className="text-white" style={{ fontWeight: 800, fontSize: "1.05rem" }}>Thanh Toán {formatVND(total)}</span> <ArrowRight size={18} className="text-white" /></>}
           {state === "processing" && <span className="text-white" style={{ fontWeight: 700 }}>Đang xử lý thanh toán…</span>}
           {state === "done" && <span className="text-white" style={{ fontWeight: 700 }}>Thanh Toán Thành Công!</span>}
         </div>
       </button>
-      {state === "done" && (
-        <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.25)" }}>
-          <p className="text-green-400 text-center" style={{ fontWeight: 700, fontSize: "0.88rem" }}>Đã chốt đơn vé thành công!</p>
-          <button onClick={() => navigate("/dashboard")} className="px-3 py-1.5 rounded-lg border border-[#e8192c]/30 text-[#e8192c]">Mở Kho Vé Của Tôi</button>
+
+      {showQR && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}>
+          <div className="bg-[#111118] border border-white/10 p-6 rounded-3xl w-full max-w-sm flex flex-col items-center relative shadow-2xl" style={{ animation: "popIn 0.3s ease-out forwards" }}>
+            <button onClick={() => setShowQR(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors">
+              <X size={16} />
+            </button>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-blue-500/20 border border-blue-500/40 text-blue-400">
+              <QrCode size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Thanh Toán Quét Mã</h3>
+            <p className="text-white/50 text-sm mb-6 text-center">Mở ứng dụng ngân hàng hoặc ví điện tử (MoMo, ZaloPay) để quét mã.</p>
+            
+            <div className="bg-white p-4 rounded-2xl mb-6 shadow-[0_0_40px_rgba(232,25,44,0.15)]">
+              <img src={qrUrl} alt="Mã QR Ngân Hàng" style={{ width: 200, height: 200 }} className="object-contain" />
+            </div>
+            
+            <div className="text-center mb-6 w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+              <p className="text-white/50 text-xs uppercase tracking-widest font-bold mb-1">Tổng Tiền Cần Thanh Toán</p>
+              <p className="text-[#e8192c] text-2xl font-black">{formatVND(total)}</p>
+            </div>
+            
+            <button onClick={executePayment} className="w-full py-3.5 bg-[#e8192c] hover:bg-[#c8111f] text-white font-bold rounded-xl transition-all active:scale-[0.98] shadow-[0_6px_20px_rgba(232,25,44,0.3)]">
+              Xác Nhận Đã Thanh Toán
+            </button>
+          </div>
+          <style>{`@keyframes popIn { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }`}</style>
         </div>
       )}
     </div>
   );
 }
 
-function VoucherSection({ setDiscount, ticketSubtotal }: { setDiscount: React.Dispatch<React.SetStateAction<number>>, ticketSubtotal: number }) {
-  const [code, setCode] = useState("");
+function VoucherSection({ setDiscount, subtotal, ticketSubtotal, orderData }: { setDiscount: React.Dispatch<React.SetStateAction<number>>, subtotal: number, ticketSubtotal: number, orderData: OrderData }) {
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [promos, setPromos] = useState<any[]>([]);
+  const [claimedIds, setClaimedIds] = useState<string[]>([]);
+  const [appliedPromo, setAppliedPromo] = useState<any | null>(null);
 
-  const handleApply = () => {
-    if (code.toUpperCase() === "CINEMA20") {
-      setDiscount(Math.round(ticketSubtotal * 0.2));
-      setStatus("success");
-      setMessage("Đã áp dụng giảm giá 20%!");
-    } else if (code.toUpperCase() === "WELCOME50K") {
-      setDiscount(50000);
-      setStatus("success");
-      setMessage("Đã giảm 50.000đ!");
-    } else {
-      setDiscount(0);
+  // Lấy danh sách Voucher từ DB để so khớp
+  useEffect(() => {
+    try {
+      const ids = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+      setClaimedIds(ids);
+    } catch(e) { setClaimedIds([]); }
+
+    fetch(`${API_BASE}/promotions`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setPromos(data.data);
+        }
+      })
+      .catch(err => console.error("Lỗi tải voucher:", err));
+  }, []);
+
+  const availablePromos = promos.filter(p => claimedIds.includes(String(p.id)) && p.isActive);
+
+  const handleApply = (promo: any) => {
+    const upperCode = promo.code?.toUpperCase();
+
+    // Kiểm tra số lượng vé cho mã COUPLE25
+    if (upperCode === "COUPLE25" && orderData.seats.length !== 2) {
       setStatus("error");
-      setMessage("Mã giảm giá không hợp lệ. Hãy thử CINEMA20");
+      setMessage("Mã này chỉ áp dụng khi mua chính xác 2 vé!");
+      return;
     }
+
+    // Kiểm tra số lượng vé cho mã FAMILY35
+    if (upperCode === "FAMILY35" && orderData.seats.length < 4) {
+      setStatus("error");
+      setMessage("Mã này chỉ áp dụng khi mua từ 4 vé trở lên!");
+      return;
+    }
+
+    // Kiểm tra giờ chiếu cho mã EARLY40 (Suất chiếu sớm)
+    if (upperCode === "EARLY40") {
+      const showHour = parseInt(orderData.showtime.time.split(":")[0] || "12", 10);
+      if (showHour >= 10) {
+        setStatus("error");
+        setMessage("Mã này chỉ áp dụng cho các suất chiếu trước 10h sáng!");
+        return;
+      }
+    }
+
+    if (promo.minOrderValue && subtotal < promo.minOrderValue) {
+      setStatus("error");
+      setMessage(`Đơn hàng phải từ ${promo.minOrderValue.toLocaleString("vi-VN")}đ để áp dụng mã này!`);
+      return;
+    }
+
+    let calculatedDiscount = 0;
+    if (promo.discountType === "PERCENT") {
+      calculatedDiscount = Math.round(subtotal * (promo.discountValue / 100));
+    } else if (promo.discountType === "FIXED") {
+      calculatedDiscount = promo.discountValue;
+    }
+
+    setDiscount(calculatedDiscount);
+    setAppliedPromo(promo);
+    setStatus("success");
+    setMessage(`Đã áp dụng: ${promo.title}`);
   };
 
   const handleRemove = () => {
-    setCode("");
+    setAppliedPromo(null);
     setDiscount(0);
     setStatus("idle");
     setMessage("");
@@ -257,28 +354,41 @@ function VoucherSection({ setDiscount, ticketSubtotal }: { setDiscount: React.Di
 
   return (
     <div className="rounded-2xl border border-white/8 overflow-hidden p-5" style={{ backgroundColor: "#111118" }}>
-      <p className="text-white/50 uppercase mb-3" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.14em" }}>Mã Giảm Giá / Voucher</p>
-      {status === "success" ? (
+      <p className="text-white/50 uppercase mb-3" style={{ fontSize: "0.65rem", fontWeight: 700, letterSpacing: "0.14em" }}>Ví Voucher Của Bạn</p>
+      {status === "success" && appliedPromo ? (
         <div className="flex items-center justify-between p-3 rounded-xl border border-green-500/30 bg-green-500/10">
           <div>
-            <span className="text-green-400 font-bold">{code.toUpperCase()}</span>
+            <span className="text-green-400 font-bold">{appliedPromo.code?.toUpperCase()}</span>
             <p className="text-green-400/80 text-xs mt-0.5">{message}</p>
           </div>
           <button onClick={handleRemove} className="text-white/50 hover:text-white text-sm">Gỡ</button>
         </div>
       ) : (
-        <div>
-          <div className="flex gap-2">
-            <input 
-              value={code} 
-              onChange={e => { setCode(e.target.value); setStatus("idle"); setMessage(""); }}
-              placeholder="Nhập mã (VD: CINEMA20)"
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white outline-none focus:border-[#e8192c]"
-            />
-            <button onClick={handleApply} className="bg-[#e8192c] hover:bg-[#c8111f] text-white px-5 rounded-xl font-bold transition-all">
-              Áp Dụng
-            </button>
-          </div>
+        <div className="flex flex-col gap-3">
+          {availablePromos.length === 0 ? (
+            <p className="text-white/30 text-sm italic">Bạn chưa lưu voucher nào trong ví.</p>
+          ) : (
+            availablePromos.map(promo => {
+              const isEligible = subtotal >= (promo.minOrderValue || 0);
+              return (
+                <div key={promo.id} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex-1">
+                    <p className="text-white font-bold text-sm">{promo.title}</p>
+                    <p className="text-white/40 text-xs mt-0.5">
+                      {promo.minOrderValue ? `Đơn tối thiểu ${promo.minOrderValue.toLocaleString("vi-VN")}đ` : "Không yêu cầu đơn tối thiểu"}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => handleApply(promo)} 
+                    disabled={!isEligible}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isEligible ? "bg-[#e8192c] hover:bg-[#c8111f] text-white" : "bg-white/10 text-white/30 cursor-not-allowed"}`}
+                  >
+                    {isEligible ? "Dùng ngay" : "Chưa đạt"}
+                  </button>
+                </div>
+              );
+            })
+          )}
           {status === "error" && <p className="text-[#e8192c] text-xs mt-2">{message}</p>}
         </div>
       )}
@@ -303,7 +413,7 @@ export function Checkout() {
   useEffect(() => {
     const fetchSnacks = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/combos");
+        const res = await fetch(`${API_BASE}/combos`);
         if (res.ok) {
           const data = await res.json();
           const mapped = data.map((c: any) => ({
@@ -348,7 +458,7 @@ export function Checkout() {
             <div className="flex-1 min-w-0 flex flex-col gap-5">
               <OrderSummaryCard orderData={orderData} />
               <SnacksSection cart={snackCart} setCart={setSnackCart} snackItems={snackItems} />
-              <VoucherSection setDiscount={setDiscount} ticketSubtotal={ticketSubtotal} />
+              <VoucherSection setDiscount={setDiscount} subtotal={ticketSubtotal + snackSubtotal} ticketSubtotal={ticketSubtotal} orderData={orderData} />
               <CostBreakdown snackCart={snackCart} orderData={orderData} snackItems={snackItems} discount={discount} />
             </div>
             <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col gap-5 lg:sticky lg:top-20">

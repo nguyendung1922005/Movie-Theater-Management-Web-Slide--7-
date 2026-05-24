@@ -140,7 +140,29 @@ function useMyTickets() {
     fetchTickets();
   }, []);
 
-  return { myTickets, loading };
+  const refundTicket = async (bookingId: string) => {
+    if (!window.confirm("Bạn có chắc chắn muốn hủy vé và hoàn tiền? Hành động này không thể hoàn tác.")) return false;
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`http://localhost:3000/api/bookings/${bookingId}/refund`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMyTickets(prev => prev.map(t => t.id === bookingId ? { ...t, status: "cancelled" } : t));
+        return true;
+      } else {
+        alert(data.error || "Hủy vé thất bại!");
+        return false;
+      }
+    } catch (e) {
+      alert("Lỗi kết nối server");
+      return false;
+    }
+  };
+
+  return { myTickets, loading, refundTicket };
 }
 
 /* ══════════════════════════════════════════════
@@ -418,7 +440,7 @@ function InfoCell({ icon, label, value, highlight }: { icon: React.ReactNode; la
 /* ══════════════════════════════════════════════
    TICKET EXPAND MODAL
 ══════════════════════════════════════════════ */
-function TicketModal({ ticket, onClose }: { ticket: TicketData; onClose: () => void }) {
+function TicketModal({ ticket, onClose, onRefund }: { ticket: TicketData; onClose: () => void; onRefund?: () => void }) {
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center p-4"
@@ -525,6 +547,16 @@ function TicketModal({ ticket, onClose }: { ticket: TicketData; onClose: () => v
           >
             <Download size={14} />
           </button>
+          {ticket.status === 'upcoming' && onRefund && (
+            <button
+              onClick={onRefund}
+              className="flex items-center gap-2 px-4 py-3.5 rounded-2xl border border-red-500/20 text-red-400 hover:text-red-300 hover:border-red-500/40 hover:bg-red-500/10 transition-all"
+              style={{ fontSize: "0.78rem", fontWeight: 600 }}
+              title="Hủy vé & Hoàn tiền"
+            >
+              <X size={14} /> HỦY VÉ
+            </button>
+          )}
         </div>
       </div>
       <style>{`
@@ -544,7 +576,7 @@ function MyTicketsView() {
   const [filter, setFilter] = useState<"all" | TicketStatus>("all");
   const [search, setSearch] = useState("");
   const [openTicket, setOpenTicket] = useState<TicketData | null>(null);
-  const { myTickets, loading } = useMyTickets();
+  const { myTickets, loading, refundTicket } = useMyTickets();
 
   const displayed = myTickets.filter((t) => {
     const matchStatus = filter === "all" || t.status === filter;
@@ -642,7 +674,16 @@ function MyTicketsView() {
         </div>
       )}
 
-      {openTicket && <TicketModal ticket={openTicket} onClose={() => setOpenTicket(null)} />}
+      {openTicket && (
+        <TicketModal 
+          ticket={openTicket}
+          onClose={() => setOpenTicket(null)}
+          onRefund={async () => {
+            const success = await refundTicket(openTicket.id);
+            if (success) setOpenTicket({ ...openTicket, status: "cancelled" });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -839,7 +880,14 @@ function MyVouchersView() {
     fetch("http://localhost:3000/api/promotions")
       .then(res => res.json())
       .then(data => {
-        if (data.success) setVouchers(data.data);
+        if (data.success) {
+          try {
+            // Chỉ hiển thị các voucher đã được người dùng Claim
+            const claimedList = JSON.parse(localStorage.getItem("claimedVouchers") || "[]").map(String);
+            const claimedPromos = data.data.filter((p: any) => claimedList.includes(String(p.id)));
+            setVouchers(claimedPromos);
+          } catch(e) { setVouchers([]); }
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -863,7 +911,7 @@ function MyVouchersView() {
       ) : vouchers.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {vouchers.map(v => {
-            const code = "CINE" + String(v.id).substring(0, 4).toUpperCase();
+            const code = v.code || ("CINE" + String(v.id).substring(0, 4).toUpperCase());
             return (
               <div key={v.id} className="rounded-2xl p-5 border border-white/10 flex flex-col justify-between transition-all hover:-translate-y-1 hover:border-white/20" style={{ backgroundColor: "#111118", backgroundImage: `radial-gradient(circle at top right, ${v.color}15, transparent 60%)` }}>
                 <div className="flex items-start justify-between mb-4">

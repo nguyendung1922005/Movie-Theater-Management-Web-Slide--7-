@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AdminLayout } from "../components/AdminLayout";
 import { PackageOpen, PencilLine, Save, Search } from "lucide-react";
-import { SNACK_ITEMS, type SnackItem } from "../lib/commerceData";
 
 /* ════════════════════════════════════════
    PALETTE
@@ -21,13 +20,29 @@ const C = {
   amber: "#f59e0b",
 };
 
-type InventoryRow = SnackItem & { stock: number };
+type InventoryRow = any & { stock: number };
 
 export function AdminInventory() {
   const [q, setQ] = useState("");
-  const [rows, setRows] = useState<InventoryRow[]>(
-    () => SNACK_ITEMS.map((s, idx) => ({ ...s, stock: idx % 2 === 0 ? 42 : 18 })),
-  );
+  const [rows, setRows] = useState<InventoryRow[]>([]);
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/combos")
+      .then(res => res.json())
+      .then(data => {
+        const mapped = data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          desc: "—",
+          price: c.price,
+          stock: c.stock || 42,
+          size: "Standard",
+          category: "combo",
+          emoji: c.name.toLowerCase().includes("bắp") ? "🍿" : "🥤"
+        }));
+        setRows(mapped);
+      });
+  }, []);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -240,4 +255,3 @@ export function AdminInventory() {
     </AdminLayout>
   );
 }
-

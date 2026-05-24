@@ -40,12 +40,12 @@ async function main() {
 
   console.log('🎁 Đang tạo Khuyến Mãi...');
   const promotions = [
-    { title: "Tuesday Special", desc: "Đồng giá vé 50k vào thứ 3 hàng tuần.", cta: "Nhận Ngay", icon: "Ticket", color: "#e8192c", isActive: true },
-    { title: "Thẻ Thành Viên", desc: "Tích điểm đổi bắp nước cực đã.", cta: "Đăng Ký", icon: "Gift", color: "#7b2d8b", isActive: true },
-    { title: "Vé Đi Nhóm", desc: "Mua 4 tặng 1, tha hồ rủ bạn bè.", cta: "Đặt Ngay", icon: "Tag", color: "#c47a00", isActive: true },
-    { title: "Sinh Nhật Vui Vẻ", desc: "Tặng 1 vé xem phim miễn phí trong tháng sinh nhật.", cta: "Xem Chi Tiết", icon: "Gift", color: "#f59e0b", isActive: true },
-    { title: "Happy Hour", desc: "Giảm 20% giá vé suất chiếu trước 10h sáng.", cta: "Săn Vé", icon: "Clock", color: "#10b981", isActive: true },
-    { title: "Combo Sinh Viên", desc: "Chỉ 85k cho 1 vé 2D và 1 Nước ngọt.", cta: "Nhận Ngay", icon: "Tag", color: "#3b82f6", isActive: true },
+    { title: "Giảm 20% Phim Mới", desc: "Áp dụng cho đơn từ 150k.", cta: "Nhận Ngay", icon: "Film", color: "#3b82f6", isActive: true, code: "CINEMA20", discountType: "PERCENT", discountValue: 20, minOrderValue: 150000 },
+    { title: "Chào Bạn Mới", desc: "Giảm 50k cho đơn từ 200k.", cta: "Đăng Ký", icon: "Gift", color: "#7b2d8b", isActive: true, code: "WELCOME50K", discountType: "FIXED", discountValue: 50000, minOrderValue: 200000 },
+    { title: "Học Sinh Sinh Viên", desc: "Giảm 30% cho HSSV.", cta: "Săn Vé", icon: "User", color: "#10b981", isActive: true, code: "STUDENT30", discountType: "PERCENT", discountValue: 30, minOrderValue: 0 },
+    { title: "Suất Chiếu Sớm", desc: "Giảm 40% suất chiếu trước 10h.", cta: "Đặt Ngay", icon: "Clock", color: "#f59e0b", isActive: true, code: "EARLY40", discountType: "PERCENT", discountValue: 40, minOrderValue: 0 },
+    { title: "Vé Cặp Đôi", desc: "Giảm 25% khi mua 2 vé.", cta: "Xem Chi Tiết", icon: "Heart", color: "#ec4899", isActive: true, code: "COUPLE25", discountType: "PERCENT", discountValue: 25, minOrderValue: 0 },
+    { title: "Combo Gia Đình", desc: "Giảm 35% cho gia đình từ 4 vé.", cta: "Đặt Ngay", icon: "Users", color: "#14b8a6", isActive: true, code: "FAMILY35", discountType: "PERCENT", discountValue: 35, minOrderValue: 0 },
   ];
   await Promise.all(promotions.map(promo => prisma.promotion.create({ data: promo })));
 

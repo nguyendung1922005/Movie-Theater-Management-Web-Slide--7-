@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AdminLayout } from "../components/AdminLayout";
 import { Copy, Plus, Search, Tag, Trash2, Zap } from "lucide-react";
-import { VOUCHERS, normalizeVoucherCode, type Voucher, type VoucherType } from "../lib/commerceData";
 
 /* ════════════════════════════════════════
    PALETTE
@@ -21,17 +20,19 @@ const C = {
   amber: "#f59e0b",
 };
 
-function fmtType(t: VoucherType) {
-  return t === "percent" ? "Percent" : "Flat";
-}
-
-function fmtValue(v: Voucher) {
-  return v.type === "percent" ? `${v.value}%` : `${v.value.toLocaleString("vi-VN")} ₫`;
+function fmtValue(v: any) {
+  return v.discountType === "PERCENT" ? `${v.discountValue}%` : `${v.discountValue.toLocaleString("vi-VN")} ₫`;
 }
 
 export function AdminPromotions() {
-  const [rows, setRows] = useState<Voucher[]>(() => VOUCHERS.map((v) => ({ ...v })));
+  const [rows, setRows] = useState<any[]>([]);
   const [q, setQ] = useState("");
+
+  useEffect(() => {
+    fetch("http://localhost:3000/api/promotions")
+      .then(res => res.json())
+      .then(data => { if (data.success) setRows(data.data); });
+  }, []);
 
   const filtered = useMemo(() => {
     const s = q.trim().toUpperCase();
@@ -39,28 +40,38 @@ export function AdminPromotions() {
     return rows.filter((r) => r.code.includes(s));
   }, [q, rows]);
 
-  const updateRow = (code: string, next: Partial<Voucher>) => {
-    setRows((prev) =>
-      prev.map((r) => (r.code === code ? { ...r, ...next } : r)),
-    );
-  };
-
-  const addVoucher = () => {
-    const base: Voucher = {
-      code: "NEWCODE",
-      type: "percent",
-      value: 10,
-      expiry: "2026-12-31",
-      active: true,
-    };
-    setRows((prev) => {
-      const uniq = normalizeVoucherCode(base.code + String(prev.length + 1));
-      return [{ ...base, code: uniq }, ...prev];
+  const updateRow = async (id: string, next: any) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...next } : r)));
+    await fetch(`http://localhost:3000/api/admin/promotions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next)
     });
   };
 
-  const removeVoucher = (code: string) => {
-    setRows((prev) => prev.filter((r) => r.code !== code));
+  const addVoucher = async () => {
+    const newCode = "NEW" + Math.floor(Math.random() * 10000);
+    const base = {
+      title: "Mã Mới", desc: "Mô tả", cta: "Nhận", icon: "Ticket", color: "#e8192c", isActive: true,
+      code: newCode,
+      discountType: "PERCENT",
+      discountValue: 10,
+      minOrderValue: 0
+    };
+    const res = await fetch("http://localhost:3000/api/admin/promotions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(base)
+    });
+    const json = await res.json();
+    if (json.success) {
+      setRows([json.data, ...rows]);
+    }
+  };
+
+  const removeVoucher = async (id: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    await fetch(`http://localhost:3000/api/admin/promotions/${id}`, { method: "DELETE" });
   };
 
   return (
@@ -170,10 +181,7 @@ export function AdminPromotions() {
                         <input
                           value={r.code}
                           onChange={(e) => {
-                            const next = normalizeVoucherCode(e.target.value);
-                            setRows((prev) =>
-                              prev.map((x) => (x.code === r.code ? { ...x, code: next } : x)),
-                            );
+                            updateRow(r.id, { code: e.target.value.toUpperCase() });
                           }}
                           className="px-3 py-2 rounded-xl border bg-transparent text-white outline-none"
                           style={{
@@ -199,8 +207,8 @@ export function AdminPromotions() {
                     {/* Type */}
                     <td className="px-5 py-3">
                       <select
-                        value={r.type}
-                        onChange={(e) => updateRow(r.code, { type: e.target.value as VoucherType })}
+                        value={r.discountType}
+                        onChange={(e) => updateRow(r.id, { discountType: e.target.value })}
                         className="px-3 py-2 rounded-xl border bg-transparent text-white outline-none"
                         style={{
                           borderColor: "rgba(255,255,255,0.10)",
@@ -208,8 +216,8 @@ export function AdminPromotions() {
                           fontSize: "0.82rem",
                         }}
                       >
-                        <option value="percent">Percent</option>
-                        <option value="flat">Flat</option>
+                        <option value="PERCENT">Percent</option>
+                        <option value="FIXED">Flat</option>
                       </select>
                     </td>
 
@@ -217,8 +225,8 @@ export function AdminPromotions() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <input
-                          value={String(r.value)}
-                          onChange={(e) => updateRow(r.code, { value: Math.max(0, Number(e.target.value || 0)) })}
+                          value={String(r.discountValue)}
+                          onChange={(e) => updateRow(r.id, { discountValue: Math.max(0, Number(e.target.value || 0)) })}
                           className="px-3 py-2 rounded-xl border bg-transparent text-white outline-none"
                           style={{
                             borderColor: "rgba(255,255,255,0.10)",
@@ -229,7 +237,7 @@ export function AdminPromotions() {
                           }}
                         />
                         <span style={{ color: C.muted, fontSize: "0.78rem", fontWeight: 700 }}>
-                          {r.type === "percent" ? "%" : "₫"}
+                          {r.discountType === "PERCENT" ? "%" : "₫"}
                         </span>
                       </div>
                       <p className="mt-1" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.68rem" }}>
@@ -237,11 +245,11 @@ export function AdminPromotions() {
                       </p>
                     </td>
 
-                    {/* Expiry */}
+                    {/* Min Order Value */}
                     <td className="px-5 py-3">
                       <input
-                        value={r.expiry}
-                        onChange={(e) => updateRow(r.code, { expiry: e.target.value })}
+                        value={r.minOrderValue}
+                        onChange={(e) => updateRow(r.id, { minOrderValue: Math.max(0, Number(e.target.value || 0)) })}
                         className="px-3 py-2 rounded-xl border bg-transparent text-white outline-none"
                         style={{
                           borderColor: "rgba(255,255,255,0.10)",
@@ -256,26 +264,26 @@ export function AdminPromotions() {
                     {/* Status */}
                     <td className="px-5 py-3">
                       <button
-                        onClick={() => updateRow(r.code, { active: !r.active })}
+                        onClick={() => updateRow(r.id, { isActive: !r.isActive })}
                         className="px-3 py-1.5 rounded-full border transition-all"
                         style={{
-                          backgroundColor: r.active ? "rgba(16,185,129,0.10)" : "rgba(232,25,44,0.10)",
-                          borderColor: r.active ? "rgba(16,185,129,0.25)" : "rgba(232,25,44,0.25)",
-                          color: r.active ? C.green : C.red,
+                          backgroundColor: r.isActive ? "rgba(16,185,129,0.10)" : "rgba(232,25,44,0.10)",
+                          borderColor: r.isActive ? "rgba(16,185,129,0.25)" : "rgba(232,25,44,0.25)",
+                          color: r.isActive ? C.green : C.red,
                           fontSize: "0.68rem",
                           fontWeight: 800,
                           letterSpacing: "0.1em",
                           textTransform: "uppercase",
                         }}
                       >
-                        {r.active ? "Active" : "Off"}
+                        {r.isActive ? "Active" : "Off"}
                       </button>
                     </td>
 
                     {/* Actions */}
                     <td className="px-5 py-3 text-right">
                       <button
-                        onClick={() => removeVoucher(r.code)}
+                        onClick={() => removeVoucher(r.id)}
                         className="w-9 h-9 rounded-xl border flex items-center justify-center text-white/35 hover:text-white transition-all"
                         style={{ borderColor: "rgba(255,255,255,0.10)", backgroundColor: "rgba(255,255,255,0.02)" }}
                         title="Delete"
@@ -337,4 +345,3 @@ export function AdminPromotions() {
     </AdminLayout>
   );
 }
-

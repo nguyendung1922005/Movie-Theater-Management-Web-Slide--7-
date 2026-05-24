@@ -106,7 +106,7 @@ export function AdminLayout({ title, subtitle, children, actions }: AdminLayoutP
         style={{ width: expanded ? "220px" : "64px", backgroundColor: C.surface, borderColor: C.border }}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: C.border, minHeight: "65px" }}>
+        <Link to="/" className="flex items-center gap-3 px-4 py-5 border-b no-underline transition-colors hover:bg-white/[0.02]" style={{ borderColor: C.border, minHeight: "65px", textDecoration: "none" }}>
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{ background: "linear-gradient(135deg,#e8192c,#a00e1f)", boxShadow: "0 4px 16px rgba(232,25,44,0.4)" }}
@@ -119,7 +119,7 @@ export function AdminLayout({ title, subtitle, children, actions }: AdminLayoutP
               <p className="text-white/30 uppercase" style={{ fontSize: "0.55rem", fontWeight: 600, letterSpacing: "0.15em" }}>Admin Panel</p>
             </div>
           )}
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 py-3 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
